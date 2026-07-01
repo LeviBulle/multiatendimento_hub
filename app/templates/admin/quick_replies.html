@@ -1,0 +1,26 @@
+{% extends "admin/base.html" %}
+{% block admin_content %}
+<div class="page-title"><h1>Mensagens rápidas globais</h1></div>
+<section class="panel">
+  <h2>Criar modelo</h2>
+  <form class="form-grid" method="post" action="/admin/quick-replies">
+    <div class="two-col">
+      <div class="form-row"><label>Título</label><input name="title" required></div>
+      <div class="form-row"><label>Atalho</label><input name="shortcut" placeholder="/bomdia" required></div>
+    </div>
+    <div class="form-row"><label>Conteúdo</label><textarea name="content" placeholder="Bom dia, {primeiro_nome}!" required></textarea></div>
+    <button class="button" type="submit">Criar mensagem</button>
+  </form>
+</section>
+<section class="panel">
+  <h2>Lista</h2>
+  <table>
+    <thead><tr><th>Título</th><th>Atalho</th><th>Conteúdo</th></tr></thead>
+    <tbody>
+    {% for reply in replies %}
+      <tr><td>{{ reply.title }}</td><td>{{ reply.shortcut }}</td><td>{{ reply.content }}</td></tr>
+    {% endfor %}
+    </tbody>
+  </table>
+</section>
+{% endblock %}

@@ -1,0 +1,42 @@
+{% extends "admin/base.html" %}
+{% block admin_content %}
+<div class="page-title">
+  <h1>Métricas básicas</h1>
+</div>
+<section class="cards">
+  <div class="metric"><span>Conversas abertas</span><strong>{{ metrics.open_conversations }}</strong></div>
+  <div class="metric"><span>Conversas finalizadas</span><strong>{{ metrics.closed_conversations }}</strong></div>
+  <div class="metric"><span>Tempo médio atendimento</span><strong>{{ metrics.avg_duration_minutes }}m</strong></div>
+  <div class="metric"><span>Primeira resposta média</span><strong>{{ metrics.avg_first_response_minutes }}m</strong></div>
+</section>
+<section class="panel">
+  <h2>Mensagens por atendente</h2>
+  <div class="table-wrap">
+    <table>
+      <thead><tr><th>Atendente</th><th>Mensagens</th></tr></thead>
+      <tbody>
+      {% for row in metrics.messages_by_agent %}
+        <tr><td>{{ row.name }}</td><td>{{ row.total }}</td></tr>
+      {% else %}
+        <tr><td colspan="2">Sem mensagens de atendentes.</td></tr>
+      {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</section>
+<section class="panel">
+  <h2>Conversas por canal</h2>
+  <div class="table-wrap">
+    <table>
+      <thead><tr><th>Canal</th><th>Conversas</th></tr></thead>
+      <tbody>
+      {% for row in metrics.conversations_by_channel %}
+        <tr><td>{{ row.name }}</td><td>{{ row.total }}</td></tr>
+      {% else %}
+        <tr><td colspan="2">Sem conversas.</td></tr>
+      {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</section>
+{% endblock %}

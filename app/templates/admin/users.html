@@ -1,0 +1,39 @@
+{% extends "admin/base.html" %}
+{% block admin_content %}
+<div class="page-title"><h1>Atendentes</h1></div>
+<section class="panel">
+  <h2>{{ "Editar atendente" if edit_user else "Criar atendente" }}</h2>
+  <form class="form-grid" method="post" action="{{ '/admin/users/' ~ edit_user.id ~ '/edit' if edit_user else '/admin/users' }}">
+    <div class="two-col">
+      <div class="form-row"><label>Nome</label><input name="name" value="{{ edit_user.name if edit_user else '' }}" required></div>
+      <div class="form-row"><label>E-mail</label><input type="email" name="email" value="{{ edit_user.email if edit_user else '' }}" required></div>
+    </div>
+    <div class="two-col">
+      <div class="form-row"><label>Senha {{ "(deixe em branco para manter)" if edit_user else "" }}</label><input type="password" name="password" {{ '' if edit_user else 'required' }}></div>
+      <div class="form-row"><label>Status</label><select name="is_active"><option value="true" {{ 'selected' if not edit_user or edit_user.is_active else '' }}>Ativo</option><option value="false" {{ 'selected' if edit_user and not edit_user.is_active else '' }}>Inativo</option></select></div>
+    </div>
+    <button class="button" type="submit">{{ "Salvar alterações" if edit_user else "Criar atendente" }}</button>
+  </form>
+</section>
+<section class="panel">
+  <h2>Lista</h2>
+  <table>
+    <thead><tr><th>Nome</th><th>E-mail</th><th>Status</th><th>Ações</th></tr></thead>
+    <tbody>
+    {% for user in users %}
+      <tr>
+        <td>{{ user.name }}</td>
+        <td>{{ user.email }}</td>
+        <td><span class="badge {{ 'ok' if user.is_active else 'warn' }}">{{ "Ativo" if user.is_active else "Inativo" }}</span></td>
+        <td>
+          <a class="button small secondary" href="/admin/users?edit={{ user.id }}">Editar</a>
+          <form method="post" action="/admin/users/{{ user.id }}/toggle" style="display:inline">
+            <button class="button small {{ 'danger' if user.is_active else '' }}" type="submit">{{ "Desativar" if user.is_active else "Ativar" }}</button>
+          </form>
+        </td>
+      </tr>
+    {% endfor %}
+    </tbody>
+  </table>
+</section>
+{% endblock %}

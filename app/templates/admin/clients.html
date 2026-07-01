@@ -1,0 +1,35 @@
+{% extends "admin/base.html" %}
+{% block admin_content %}
+<div class="page-title"><h1>Clientes</h1></div>
+<section class="panel">
+  <h2>{{ "Editar cliente" if edit_client else "Cadastrar cliente" }}</h2>
+  <form class="form-grid" method="post" action="{{ '/admin/clients/' ~ edit_client.id ~ '/edit' if edit_client else '/admin/clients' }}">
+    <div class="two-col">
+      <div class="form-row"><label>Nome completo</label><input name="full_name" value="{{ edit_client.full_name if edit_client else '' }}" required></div>
+      <div class="form-row"><label>Telefone</label><input name="phone" value="{{ edit_client.phone if edit_client else '' }}"></div>
+    </div>
+    <div class="two-col">
+      <div class="form-row"><label>E-mail</label><input type="email" name="email" value="{{ edit_client.email if edit_client else '' }}"></div>
+      <div class="form-row"><label>Endereço</label><input name="address" value="{{ edit_client.address if edit_client else '' }}"></div>
+    </div>
+    <div class="form-row"><label>Observações internas</label><textarea name="notes">{{ edit_client.notes if edit_client else '' }}</textarea></div>
+    <button class="button" type="submit">{{ "Salvar cliente" if edit_client else "Criar cliente" }}</button>
+  </form>
+</section>
+<section class="panel">
+  <h2>Lista</h2>
+  <table>
+    <thead><tr><th>Cliente</th><th>Primeiro nome</th><th>Contato</th><th>Ações</th></tr></thead>
+    <tbody>
+    {% for client in clients %}
+      <tr>
+        <td>{{ client.full_name }}</td>
+        <td>{{ client.first_name }}</td>
+        <td>{{ client.phone }}<br>{{ client.email }}</td>
+        <td><a class="button small secondary" href="/admin/clients?edit={{ client.id }}">Editar</a></td>
+      </tr>
+    {% endfor %}
+    </tbody>
+  </table>
+</section>
+{% endblock %}

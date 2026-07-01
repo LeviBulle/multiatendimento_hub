@@ -1,0 +1,22 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{{ title or "MultiAtendimento Hub" }}</title>
+  <link rel="stylesheet" href="{{ url_for('static', path='/css/app.css') }}">
+</head>
+<body>
+  {% if current_user %}
+  <header class="topbar">
+    <a class="brand" href="{{ '/admin' if current_user.role == 'admin' else '/agent' }}">MultiAtendimento Hub</a>
+    <div class="userbar">
+      <span>{{ current_user.name }} · {{ "Administrador" if current_user.role == "admin" else "Atendente" }}</span>
+      <a href="/logout">Sair</a>
+    </div>
+  </header>
+  {% endif %}
+  {% block body %}{% endblock %}
+  <script src="{{ url_for('static', path='/js/app.js') }}"></script>
+</body>
+</html>

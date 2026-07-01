@@ -1,0 +1,74 @@
+{% extends "base.html" %}
+{% block body %}
+<div class="chat-shell">
+  <aside class="conversation-list">
+    {% for item in conversations %}
+    <a class="conv-item {{ 'active' if conversation and item.id == conversation.id else '' }}" href="/agent/conversations/{{ item.id }}">
+      <div class="conv-head">
+        <span>{{ item.client.full_name }}</span>
+        {% if item.unread %}<span class="unread-dot"></span>{% endif %}
+      </div>
+      <div class="conv-meta">
+        <span>{{ item.channel.type }}</span>
+        <span>{{ item.status }}</span>
+        <span>{{ item.time_since_last }}</span>
+      </div>
+    </a>
+    {% endfor %}
+  </aside>
+  <main class="chat-main">
+    {% if conversation %}
+    <section class="chat-header">
+      <h1>{{ conversation.client.full_name }}</h1>
+      <p>{{ conversation.channel.type }} · {{ conversation.status }} · responsável: {{ conversation.agent.name if conversation.agent else "Sem atendente" }}</p>
+    </section>
+    <section class="messages">
+      {% for message in messages %}
+      <article class="message {{ 'agent' if message.sender == 'atendente' else '' }} {{ 'internal' if message.is_internal else '' }}">
+        <div class="meta">{{ message.sender }} · {{ message.created_at.strftime("%d/%m/%Y %H:%M") }} · {{ message.status }}</div>
+        <p>{{ message.text }}</p>
+      </article>
+      {% endfor %}
+    </section>
+    <form class="composer" method="post" action="/agent/conversations/{{ conversation.id }}/messages">
+      <div class="quick-pills">
+        {% for reply in quick_replies %}
+        <button type="button" onclick='applyQuickReply({{ reply.rendered|tojson }})'>{{ reply.shortcut }}</button>
+        {% endfor %}
+      </div>
+      <textarea id="message_text" name="text" placeholder="Digite uma mensagem ou use /bomdia" onblur='fillShortcut({{ shortcuts|tojson }})' required></textarea>
+      <div class="composer-actions">
+        <label><input type="checkbox" name="is_internal" value="true"> Interna</label>
+        <input type="datetime-local" name="scheduled_for">
+        <button class="button" type="submit">Enviar</button>
+      </div>
+    </form>
+    {% else %}
+    <section class="chat-header"><h1>Nenhuma conversa</h1><p>Crie dados de exemplo ou cadastre conversas pelo banco no MVP.</p></section>
+    {% endif %}
+  </main>
+  <aside class="client-panel">
+    {% if conversation %}
+    <h2>Cliente</h2>
+    <form class="form-grid" method="post" action="/agent/conversations/{{ conversation.id }}/client">
+      <div class="form-row"><label>Nome completo</label><input name="full_name" value="{{ conversation.client.full_name }}" required></div>
+      <div class="form-row"><label>Primeiro nome</label><input value="{{ conversation.client.first_name }}" disabled></div>
+      <div class="form-row"><label>Telefone</label><input name="phone" value="{{ conversation.client.phone or '' }}"></div>
+      <div class="form-row"><label>E-mail</label><input name="email" value="{{ conversation.client.email or '' }}"></div>
+      <div class="form-row"><label>Endereço</label><input name="address" value="{{ conversation.client.address or '' }}"></div>
+      <div class="form-row"><label>Observações internas</label><textarea name="notes">{{ conversation.client.notes or '' }}</textarea></div>
+      <button class="button secondary" type="submit">Salvar dados</button>
+    </form>
+    <hr>
+    <h2>Mensagens rápidas pessoais</h2>
+    <form class="form-grid" method="post" action="/agent/quick-replies">
+      <input type="hidden" name="conversation_id" value="{{ conversation.id }}">
+      <div class="form-row"><label>Título</label><input name="title" required></div>
+      <div class="form-row"><label>Atalho</label><input name="shortcut" placeholder="/preco" required></div>
+      <div class="form-row"><label>Conteúdo</label><textarea name="content" required></textarea></div>
+      <button class="button secondary" type="submit">Criar atalho</button>
+    </form>
+    {% endif %}
+  </aside>
+</div>
+{% endblock %}
