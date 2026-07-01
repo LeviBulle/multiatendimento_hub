@@ -22,15 +22,6 @@ copy .env.example .env
 uvicorn app.main:app --reload
 ```
 
-Se no Windows o comando `python` ainda apontar para uma versão antiga, crie o ambiente usando o executável instalado:
-
-```powershell
-& "C:\Users\Ellub\AppData\Local\Python\pythoncore-3.14-64\python.exe" -m venv .venv
-.\.venv\Scripts\activate
-pip install -r requirements.txt
-uvicorn app.main:app --reload
-```
-
 Acesse `http://127.0.0.1:8000`.
 
 ## Login inicial
@@ -69,10 +60,3 @@ app/
   templates/   Telas Jinja2
 ```
 
-## Próximos passos sugeridos
-
-- Adicionar migrations com Alembic.
-- Criar endpoints JSON para uso por SPA/mobile.
-- Implementar testes automatizados com pytest.
-- Trocar SQLite por PostgreSQL via `DATABASE_URL`.
-- Integrar Meta WhatsApp Cloud API, Instagram Messaging e Facebook Messenger.
