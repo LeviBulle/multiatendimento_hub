@@ -1,74 +1,343 @@
 {% extends "base.html" %}
 {% block body %}
-<div class="chat-shell">
-  <aside class="conversation-list">
-    {% for item in conversations %}
-    <a class="conv-item {{ 'active' if conversation and item.id == conversation.id else '' }}" href="/agent/conversations/{{ item.id }}">
-      <div class="conv-head">
-        <span>{{ item.client.full_name }}</span>
-        {% if item.unread %}<span class="unread-dot"></span>{% endif %}
-      </div>
-      <div class="conv-meta">
-        <span>{{ item.channel.type }}</span>
-        <span>{{ item.status }}</span>
-        <span>{{ item.time_since_last }}</span>
-      </div>
-    </a>
-    {% endfor %}
+<div class="nexys-card">
+  <aside class="inbox-pane">
+    <form class="inbox-search" method="get" action="/agent">
+      <input type="hidden" name="tab" value="{{ filters.tab }}">
+      {% for agent_id in filters.agent_ids %}<input type="hidden" name="agent_id" value="{{ agent_id }}">{% endfor %}
+      {% if filters.channel %}<input type="hidden" name="channel" value="{{ filters.channel }}">{% endif %}
+      <input name="q" value="{{ filters.search }}" placeholder="Procurar ...">
+      <button class="filter-button" type="button" title="Filtros avancados" aria-label="Filtros avancados" data-open-modal="advanced-filter-modal"></button>
+    </form>
+
+    <nav class="inbox-tabs" aria-label="Status das conversas">
+      <a class="{{ 'active' if filters.tab == 'novo' else '' }}" href="{{ tab_urls.novo }}">
+        <span>{{ status_counts.novo }}</span>
+        Novo
+      </a>
+      <a class="{{ 'active' if filters.tab == 'atendimentos' else '' }}" href="{{ tab_urls.atendimentos }}">
+        <span>{{ status_counts.atendimentos }}</span>
+        Atendimentos
+      </a>
+      <a class="{{ 'active' if filters.tab == 'nao_lidos' else '' }}" href="{{ tab_urls.nao_lidos }}">
+        <span>{{ status_counts.nao_lidos }}</span>
+        Nao lidos
+      </a>
+      <a class="{{ 'active' if filters.tab == 'encerrados' else '' }}" href="{{ tab_urls.encerrados }}">
+        <span>{{ status_counts.encerrados }}</span>
+        Encerrados
+      </a>
+    </nav>
+
+    <div class="inbox-list">
+      {% for item in conversations %}
+      <a class="inbox-item {{ 'active' if conversation and item.id == conversation.id else '' }}" href="/agent/conversations/{{ item.id }}{% if list_query %}?{{ list_query }}{% endif %}">
+        <span class="avatar-sm">{{ item.client.first_name[:1] or item.client.full_name[:1] }}</span>
+        <span class="platform-dot">{{ item.channel.type[:1] }}</span>
+        <span class="inbox-copy">
+          <strong>{{ item.client.full_name|upper }}</strong>
+          <small>{{ item.client.phone or item.channel.name }}</small>
+          <em>{{ item.agent.name if item.agent else "Sem atendente" }}</em>
+        </span>
+        <span class="inbox-time">{{ item.time_since_last }}</span>
+        {% if item.unread %}<span class="online-dot"></span>{% endif %}
+      </a>
+      {% else %}
+      <div class="empty-list">Nenhuma conversa encontrada.</div>
+      {% endfor %}
+    </div>
+
+    <button class="fab-new" type="button" title="Iniciar nova conversa" aria-label="Iniciar nova conversa" data-open-modal="new-conversation-modal">+</button>
   </aside>
-  <main class="chat-main">
+
+  <main class="conversation-pane">
     {% if conversation %}
-    <section class="chat-header">
-      <h1>{{ conversation.client.full_name }}</h1>
-      <p>{{ conversation.channel.type }} · {{ conversation.status }} · responsável: {{ conversation.agent.name if conversation.agent else "Sem atendente" }}</p>
-    </section>
-    <section class="messages">
+    {% set client_full_name = conversation.client.full_name %}
+    {% set client_preferred_name = conversation.client.preferred_name %}
+    {% set client_display_phone = conversation.client.phone or "Sem telefone" %}
+    <header class="conversation-header">
+      <div class="conversation-person">
+        <span class="avatar-md">{{ conversation.client.first_name[:1] or conversation.client.full_name[:1] }}</span>
+        <div>
+          <h1 class="copyable-heading" title="Copiar nome completo" data-copy-text="{{ client_full_name }}">
+            {{ client_full_name }}
+            {% if client_preferred_name %}<span class="preferred-name">({{ client_preferred_name }})</span>{% endif %}
+          </h1>
+          <p class="copyable-heading" title="Copiar apenas numero" data-copy-phone-header data-phone-number="{{ conversation.client.phone_number or '' }}" data-phone-full="{{ conversation.client.phone or '' }}"><span class="flag">BR</span> {{ client_display_phone }}</p>
+        </div>
+      </div>
+      <div class="conversation-status">
+        <span>{{ conversation.status|replace("aberta", "Em Atendimento")|replace("pendente", "Pendente")|replace("finalizada", "Concluido") }}</span>
+        <small>{{ conversation.agent.name if conversation.agent else "Sem atendente" }}</small>
+      </div>
+      <div class="conversation-actions">
+        <form method="post" action="/agent/conversations/{{ conversation.id }}/status">
+          <input type="hidden" name="status" value="finalizada">
+          <button class="tool-icon" type="submit" title="Finalizar">OK</button>
+        </form>
+        <button class="tool-icon" type="button" title="Dados do cliente" data-toggle-client-panel>P</button>
+        <button class="tool-icon" type="button" title="Acoes" data-toggle-menu="conversation-menu">...</button>
+        <div class="action-menu" id="conversation-menu">
+          <form method="post" action="/agent/conversations/{{ conversation.id }}/status"><input type="hidden" name="status" value="aberta"><button type="submit">Atendimento</button></form>
+          <form method="post" action="/agent/conversations/{{ conversation.id }}/status"><input type="hidden" name="status" value="pendente"><button type="submit">Cancelar</button></form>
+          <button type="button" data-toggle-client-panel>Dados do cliente</button>
+        </div>
+      </div>
+    </header>
+
+    <section class="conversation-messages">
       {% for message in messages %}
-      <article class="message {{ 'agent' if message.sender == 'atendente' else '' }} {{ 'internal' if message.is_internal else '' }}">
-        <div class="meta">{{ message.sender }} · {{ message.created_at.strftime("%d/%m/%Y %H:%M") }} · {{ message.status }}</div>
-        <p>{{ message.text }}</p>
+      <article class="message-row {{ 'agent' if message.sender == 'atendente' else 'customer' }} {{ 'internal' if message.is_internal else '' }}">
+        <span class="avatar-xs">{{ message.sender[:1] }}</span>
+        <div class="bubble">
+          <p>{{ message.text }}</p>
+          <small>{{ message.created_at.strftime("%H:%M:%S, %d/%m/%Y") }}</small>
+        </div>
       </article>
+      {% else %}
+      <div class="empty-chat">Nenhuma mensagem nesta conversa.</div>
       {% endfor %}
     </section>
-    <form class="composer" method="post" action="/agent/conversations/{{ conversation.id }}/messages">
-      <div class="quick-pills">
-        {% for reply in quick_replies %}
-        <button type="button" onclick='applyQuickReply({{ reply.rendered|tojson }})'>{{ reply.shortcut }}</button>
-        {% endfor %}
+
+    <form class="message-composer" method="post" action="/agent/conversations/{{ conversation.id }}/messages" enctype="multipart/form-data">
+      <div class="composer-tabs">
+        <label><input type="radio" name="composer_mode" value="message" checked> Mensagem</label>
+        <label><input type="radio" name="composer_mode" value="internal"> Anotacoes Internas</label>
+        <button type="button" data-open-modal="templates-modal">Modelo de Mensagem</button>
       </div>
-      <textarea id="message_text" name="text" placeholder="Digite uma mensagem ou use /bomdia" onblur='fillShortcut({{ shortcuts|tojson }})' required></textarea>
-      <div class="composer-actions">
-        <label><input type="checkbox" name="is_internal" value="true"> Interna</label>
-        <input type="datetime-local" name="scheduled_for">
-        <button class="button" type="submit">Enviar</button>
+      <div class="composer-line">
+        <button class="attach-button" type="button" title="Anexar arquivo" aria-label="Anexar arquivo" data-attach-button></button>
+        <input id="attachment_input" name="attachment" type="file" hidden>
+        <textarea id="message_text" name="text" placeholder="Digite sua mensagem ou use / para mensagens padrao." data-shortcuts='{{ shortcuts|tojson }}'></textarea>
+        <input type="hidden" name="is_internal" value="">
+        <div class="composer-tools">
+          <button class="emoji-button" type="button" title="Emoji" aria-label="Emoji" data-emoji-button>:)</button>
+          <button class="mic-button" type="button" title="Gravar audio" aria-label="Gravar audio" data-audio-button>mic</button>
+          <button class="send-icon" type="submit" title="Enviar">&gt;</button>
+        </div>
+        <div class="quick-reply-menu" data-quick-reply-menu></div>
+        <div class="emoji-menu" data-emoji-menu>
+          <button type="button">:)</button>
+          <button type="button">:D</button>
+          <button type="button">;)</button>
+          <button type="button">&lt;3</button>
+          <button type="button">ok</button>
+        </div>
+        <div class="attachment-chip" data-attachment-chip hidden></div>
+        <div class="recording-chip" data-recording-chip hidden>Gravando audio...</div>
       </div>
     </form>
     {% else %}
-    <section class="chat-header"><h1>Nenhuma conversa</h1><p>Crie dados de exemplo ou cadastre conversas pelo banco no MVP.</p></section>
+    <section class="blank-conversation">
+      <h1>Selecione uma conversa</h1>
+      <p>Use a lista lateral ou inicie uma nova conversa.</p>
+    </section>
     {% endif %}
   </main>
-  <aside class="client-panel">
-    {% if conversation %}
-    <h2>Cliente</h2>
-    <form class="form-grid" method="post" action="/agent/conversations/{{ conversation.id }}/client">
-      <div class="form-row"><label>Nome completo</label><input name="full_name" value="{{ conversation.client.full_name }}" required></div>
-      <div class="form-row"><label>Primeiro nome</label><input value="{{ conversation.client.first_name }}" disabled></div>
-      <div class="form-row"><label>Telefone</label><input name="phone" value="{{ conversation.client.phone or '' }}"></div>
-      <div class="form-row"><label>E-mail</label><input name="email" value="{{ conversation.client.email or '' }}"></div>
-      <div class="form-row"><label>Endereço</label><input name="address" value="{{ conversation.client.address or '' }}"></div>
-      <div class="form-row"><label>Observações internas</label><textarea name="notes">{{ conversation.client.notes or '' }}</textarea></div>
-      <button class="button secondary" type="submit">Salvar dados</button>
+
+  {% if conversation %}
+  <aside class="client-quick-panel" data-client-panel>
+    <button class="client-panel-toggle" type="button" title="Ocultar dados do cliente" aria-label="Ocultar dados do cliente" data-toggle-client-panel></button>
+    <form class="client-quick-form" method="post" action="/agent/conversations/{{ conversation.id }}/client">
+      <section class="client-info-block">
+        <div class="quick-field wide">
+          <label>nome completo</label>
+          <div><input name="full_name" value="{{ conversation.client.full_name }}" required data-name-upper><button type="button" data-copy-field>copiar</button></div>
+        </div>
+        <div class="quick-field">
+          <label>nome preferencial</label>
+          <div><input name="preferred_name" value="{{ conversation.client.preferred_name or '' }}" data-name-title><button type="button" data-copy-field>copiar</button></div>
+        </div>
+        <div class="quick-field">
+          <label>data de nascimento</label>
+          <div><input name="birth_date" value="{{ conversation.client.birth_date or '' }}" inputmode="numeric" placeholder="dd/mm/aaaa" data-mask-birth-date><button type="button" data-copy-field>copiar</button></div>
+        </div>
+        <div class="quick-field phone-field">
+          <label>telefone</label>
+          <input type="hidden" name="phone" value="{{ conversation.client.phone or '' }}">
+          <div class="phone-grid">
+            <input name="phone_country_code" value="{{ '+' ~ conversation.client.phone_country_code if conversation.client.phone_country_code else '' }}" inputmode="numeric" placeholder="+55" aria-label="codigo do pais" data-mask-country>
+            <input name="phone_area_code" value="{{ conversation.client.phone_area_code or '' }}" inputmode="numeric" placeholder="DDD" aria-label="ddd" data-mask-ddd>
+            <input name="phone_number" value="{{ conversation.client.phone_number or '' }}" inputmode="numeric" placeholder="99999-0000" aria-label="numero" data-mask-phone-number>
+          </div>
+          <div class="phone-copy-actions">
+            <button type="button" title="Copiar telefone completo" data-copy-phone-full>tudo</button>
+            <button type="button" title="Copiar apenas numero" data-copy-phone-number>numero</button>
+          </div>
+        </div>
+        <div class="quick-field">
+          <label>email</label>
+          <div><input name="email" value="{{ conversation.client.email or '' }}"><button type="button" data-copy-field>copiar</button></div>
+        </div>
+        <div class="quick-field">
+          <label>cpf</label>
+          <div><input name="cpf" value="{{ conversation.client.cpf or '' }}" inputmode="numeric" placeholder="000.000.000-00" data-mask-cpf><button type="button" data-copy-field>copiar</button></div>
+        </div>
+        <div class="quick-field">
+          <label>rg</label>
+          <div><input name="rg" value="{{ conversation.client.rg or '' }}"><button type="button" data-copy-field>copiar</button></div>
+        </div>
+        <div class="quick-field gender-field">
+          <label>sexo</label>
+          <div>
+            <label><input type="radio" name="gender" value="feminino" {{ 'checked' if conversation.client.gender == 'feminino' else '' }}> feminino</label>
+            <label><input type="radio" name="gender" value="masculino" {{ 'checked' if conversation.client.gender == 'masculino' else '' }}> masculino</label>
+          </div>
+        </div>
+      </section>
+
+      <section class="client-info-block">
+        <div class="quick-field">
+          <label>endereco</label>
+          <div><input name="address" value="{{ conversation.client.address or '' }}"><button type="button" data-copy-field>copiar</button></div>
+        </div>
+        <div class="quick-field">
+          <label>cep</label>
+          <div><input name="zip_code" value="{{ conversation.client.zip_code or '' }}"><button type="button" data-copy-field>copiar</button></div>
+        </div>
+        <div class="quick-field">
+          <label>numero</label>
+          <div><input name="address_number" value="{{ conversation.client.address_number or '' }}"><button type="button" data-copy-field>copiar</button></div>
+        </div>
+        <div class="quick-field">
+          <label>complemento</label>
+          <div><input name="address_complement" value="{{ conversation.client.address_complement or '' }}"><button type="button" data-copy-field>copiar</button></div>
+        </div>
+        <div class="quick-field">
+          <label>ponto de referencia</label>
+          <div><input name="reference_point" value="{{ conversation.client.reference_point or '' }}"><button type="button" data-copy-field>copiar</button></div>
+        </div>
+        <div class="quick-field">
+          <label>localizacao fixa</label>
+          <div><input name="fixed_location" value="{{ conversation.client.fixed_location or '' }}"><button type="button" data-copy-field>copiar</button></div>
+        </div>
+      </section>
+
+      <section class="client-info-block">
+        <div class="quick-field text-field">
+          <label>observacoes</label>
+          <div><textarea name="notes">{{ conversation.client.notes or '' }}</textarea><button type="button" data-copy-field>copiar</button></div>
+        </div>
+        <div class="quick-field text-field">
+          <label>restricoes</label>
+          <div><textarea name="restrictions">{{ conversation.client.restrictions or '' }}</textarea><button type="button" data-copy-field>copiar</button></div>
+        </div>
+        <div class="quick-field text-field">
+          <label>reclamacoes</label>
+          <div><textarea name="complaints">{{ conversation.client.complaints or '' }}</textarea><button type="button" data-copy-field>copiar</button></div>
+        </div>
+      </section>
+
+      <section class="client-info-block empty-client-block"></section>
+      <button class="button small" type="submit">Salvar dados</button>
     </form>
-    <hr>
-    <h2>Mensagens rápidas pessoais</h2>
-    <form class="form-grid" method="post" action="/agent/quick-replies">
-      <input type="hidden" name="conversation_id" value="{{ conversation.id }}">
-      <div class="form-row"><label>Título</label><input name="title" required></div>
-      <div class="form-row"><label>Atalho</label><input name="shortcut" placeholder="/preco" required></div>
-      <div class="form-row"><label>Conteúdo</label><textarea name="content" required></textarea></div>
-      <button class="button secondary" type="submit">Criar atalho</button>
-    </form>
-    {% endif %}
   </aside>
+  {% endif %}
 </div>
+
+<button class="floating-settings" type="button" title="Configuracoes">#</button>
+
+<div class="modal-backdrop" id="advanced-filter-modal" aria-hidden="true">
+  <section class="modal filter-modal" role="dialog" aria-modal="true" aria-labelledby="filter-title">
+    <div class="modal-header">
+      <h2 id="filter-title">Filtros Avancados</h2>
+      <button class="icon-button ghost" type="button" aria-label="Fechar" data-close-modal>x</button>
+    </div>
+    <form class="advanced-filter-form" method="get" action="/agent">
+      <input type="hidden" name="tab" value="{{ filters.tab }}">
+      <input type="hidden" name="q" value="{{ filters.search }}">
+      <div class="two-col">
+        <div class="form-row">
+          <label>Agentes</label>
+          <div class="agent-checklist">
+            {% if current_user.role == "admin" %}
+            <p>Sem selecao mostra todos os agentes.</p>
+            {% else %}
+            <p>Sem selecao volta para seu usuario.</p>
+            {% endif %}
+            {% for agent in agent_filter_options %}
+            <label>
+              <input type="checkbox" name="agent_id" value="{{ agent.id }}" {{ 'checked' if agent.id in filters.agent_ids else '' }}>
+              <span>{{ agent.name }}</span>
+            </label>
+            {% endfor %}
+          </div>
+        </div>
+        <div class="form-row">
+          <label>Canal</label>
+          <select name="channel">
+            <option value="">Todas</option>
+            {% for channel in channels|map(attribute='type')|unique %}
+            <option value="{{ channel }}" {{ 'selected' if filters.channel == channel else '' }}>{{ channel }}</option>
+            {% endfor %}
+          </select>
+        </div>
+      </div>
+      <div class="switch-row">
+        <label><input type="checkbox" name="unread" value="1"> Nao lidas</label>
+        <label><input type="checkbox" name="expired" value="1"> Vencidas</label>
+        <label><input type="checkbox" name="favorites" value="1"> Somente favoritos</label>
+      </div>
+      <table class="filter-table">
+        <thead><tr><th>Visualizar</th><th>Status</th><th>Instancia</th></tr></thead>
+        <tbody>
+          {% for channel in channels %}
+          <tr>
+            <td><input type="checkbox" name="channel" value="{{ channel.type }}"></td>
+            <td><span class="connected">Conectado</span></td>
+            <td><span class="avatar-xs">{{ channel.type[:1] }}</span> {{ channel.name }}</td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+      <div class="modal-actions">
+        <a class="button secondary" href="/agent">Limpar Filtros</a>
+        <button class="button secondary" type="submit">Salvar e Filtrar</button>
+        <button class="button" type="submit">Filtrar</button>
+      </div>
+    </form>
+  </section>
+</div>
+
+<div class="modal-backdrop" id="new-conversation-modal" aria-hidden="true">
+  <section class="modal" role="dialog" aria-modal="true" aria-labelledby="new-conversation-title">
+    <div class="modal-header">
+      <h2 id="new-conversation-title">Iniciar nova conversa</h2>
+      <button class="icon-button ghost" type="button" aria-label="Fechar" data-close-modal>x</button>
+    </div>
+    <form class="form-grid" method="post" action="/agent/conversations">
+      <div class="form-row"><label>Nome do cliente</label><input name="full_name" required></div>
+      <div class="two-col">
+        <div class="form-row"><label>Telefone</label><input name="phone" placeholder="+55 11 99999-0000"></div>
+        <div class="form-row"><label>E-mail</label><input type="email" name="email" placeholder="cliente@email.com"></div>
+      </div>
+      <div class="form-row">
+        <label>Canal</label>
+        <select name="channel_id" required>
+          {% for channel in channels %}
+          <option value="{{ channel.id }}">{{ channel.type }} - {{ channel.name }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="form-row"><label>Primeira mensagem recebida</label><textarea name="initial_message" placeholder="Mensagem inicial do cliente"></textarea></div>
+      <button class="button" type="submit">Criar conversa</button>
+    </form>
+  </section>
+</div>
+
+{% if conversation %}
+<div class="modal-backdrop" id="templates-modal" aria-hidden="true">
+  <section class="modal" role="dialog" aria-modal="true" aria-labelledby="templates-title">
+    <div class="modal-header">
+      <h2 id="templates-title">Modelos de mensagem</h2>
+      <button class="icon-button ghost" type="button" aria-label="Fechar" data-close-modal>x</button>
+    </div>
+    <div class="quick-pills template-list">
+      {% for reply in quick_replies %}
+      <button type="button" onclick='applyQuickReply({{ reply.rendered|tojson }}); document.querySelector("#templates-modal").classList.remove("is-open")'>{{ reply.shortcut }}</button>
+      {% endfor %}
+    </div>
+  </section>
+</div>
+{% endif %}
 {% endblock %}

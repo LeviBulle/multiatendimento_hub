@@ -5,28 +5,67 @@
   <h2>{{ "Editar cliente" if edit_client else "Cadastrar cliente" }}</h2>
   <form class="form-grid" method="post" action="{{ '/admin/clients/' ~ edit_client.id ~ '/edit' if edit_client else '/admin/clients' }}">
     <div class="two-col">
-      <div class="form-row"><label>Nome completo</label><input name="full_name" value="{{ edit_client.full_name if edit_client else '' }}" required></div>
-      <div class="form-row"><label>Telefone</label><input name="phone" value="{{ edit_client.phone if edit_client else '' }}"></div>
+      <div class="form-row"><label>Nome completo</label><input name="full_name" value="{{ edit_client.full_name if edit_client else '' }}" required data-name-upper></div>
+      <div class="form-row"><label>Nome preferencial</label><input name="preferred_name" value="{{ edit_client.preferred_name if edit_client else '' }}" data-name-title></div>
     </div>
     <div class="two-col">
-      <div class="form-row"><label>E-mail</label><input type="email" name="email" value="{{ edit_client.email if edit_client else '' }}"></div>
-      <div class="form-row"><label>Endereço</label><input name="address" value="{{ edit_client.address if edit_client else '' }}"></div>
+      <div class="form-row"><label>Data de nascimento</label><input name="birth_date" value="{{ edit_client.birth_date if edit_client else '' }}" inputmode="numeric" placeholder="dd/mm/aaaa" data-mask-birth-date></div>
+      <div class="form-row">
+        <label>Sexo</label>
+        <div class="radio-row">
+          <label><input type="radio" name="gender" value="feminino" {{ 'checked' if edit_client and edit_client.gender == 'feminino' else '' }}> Feminino</label>
+          <label><input type="radio" name="gender" value="masculino" {{ 'checked' if edit_client and edit_client.gender == 'masculino' else '' }}> Masculino</label>
+        </div>
+      </div>
     </div>
-    <div class="form-row"><label>Observações internas</label><textarea name="notes">{{ edit_client.notes if edit_client else '' }}</textarea></div>
+    <div class="two-col">
+      <div class="form-row">
+        <label>Telefone</label>
+        <input type="hidden" name="phone" value="{{ edit_client.phone if edit_client else '' }}">
+        <div class="phone-grid admin-phone-grid">
+          <input name="phone_country_code" value="{{ '+' ~ edit_client.phone_country_code if edit_client and edit_client.phone_country_code else '' }}" inputmode="numeric" placeholder="+55" aria-label="codigo do pais" data-mask-country>
+          <input name="phone_area_code" value="{{ edit_client.phone_area_code if edit_client else '' }}" inputmode="numeric" placeholder="DDD" aria-label="ddd" data-mask-ddd>
+          <input name="phone_number" value="{{ edit_client.phone_number if edit_client else '' }}" inputmode="numeric" placeholder="99999-0000" aria-label="numero" data-mask-phone-number>
+        </div>
+      </div>
+      <div class="form-row"><label>E-mail</label><input type="email" name="email" value="{{ edit_client.email if edit_client else '' }}"></div>
+    </div>
+    <div class="two-col">
+      <div class="form-row"><label>CPF</label><input name="cpf" value="{{ edit_client.cpf if edit_client else '' }}" inputmode="numeric" placeholder="000.000.000-00" data-mask-cpf></div>
+      <div class="form-row"><label>RG</label><input name="rg" value="{{ edit_client.rg if edit_client else '' }}"></div>
+    </div>
+    <div class="two-col">
+      <div class="form-row"><label>Endereco</label><input name="address" value="{{ edit_client.address if edit_client else '' }}"></div>
+      <div class="form-row"><label>CEP</label><input name="zip_code" value="{{ edit_client.zip_code if edit_client else '' }}"></div>
+    </div>
+    <div class="two-col">
+      <div class="form-row"><label>Numero</label><input name="address_number" value="{{ edit_client.address_number if edit_client else '' }}"></div>
+      <div class="form-row"><label>Complemento</label><input name="address_complement" value="{{ edit_client.address_complement if edit_client else '' }}"></div>
+    </div>
+    <div class="two-col">
+      <div class="form-row"><label>Ponto de referencia</label><input name="reference_point" value="{{ edit_client.reference_point if edit_client else '' }}"></div>
+      <div class="form-row"><label>Localizacao fixa</label><input name="fixed_location" value="{{ edit_client.fixed_location if edit_client else '' }}"></div>
+    </div>
+    <div class="form-row"><label>Observacoes</label><textarea name="notes">{{ edit_client.notes if edit_client else '' }}</textarea></div>
+    <div class="two-col">
+      <div class="form-row"><label>Restricoes</label><textarea name="restrictions">{{ edit_client.restrictions if edit_client else '' }}</textarea></div>
+      <div class="form-row"><label>Reclamacoes</label><textarea name="complaints">{{ edit_client.complaints if edit_client else '' }}</textarea></div>
+    </div>
     <button class="button" type="submit">{{ "Salvar cliente" if edit_client else "Criar cliente" }}</button>
   </form>
 </section>
 <section class="panel">
   <h2>Lista</h2>
   <table>
-    <thead><tr><th>Cliente</th><th>Primeiro nome</th><th>Contato</th><th>Ações</th></tr></thead>
+    <thead><tr><th>Cliente</th><th>Preferencial</th><th>Contato</th><th>Documento</th><th>Acoes</th></tr></thead>
     <tbody>
     {% for client in clients %}
       <tr>
         <td>{{ client.full_name }}</td>
-        <td>{{ client.first_name }}</td>
+        <td>{{ client.preferred_name or client.first_name }}</td>
         <td>{{ client.phone }}<br>{{ client.email }}</td>
-        <td><a class="button small secondary" href="/admin/clients?edit={{ client.id }}">Editar</a></td>
+        <td>{{ client.cpf or '' }}<br>{{ client.rg or '' }}</td>
+        <td><a class="button small secondary" href="/admin/clients?edit={{ client.id }}">Editar dados</a></td>
       </tr>
     {% endfor %}
     </tbody>

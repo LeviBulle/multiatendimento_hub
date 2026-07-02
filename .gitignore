@@ -4,4 +4,5 @@ __pycache__/
 *.py[cod]
 *.db
 *.log
+app/static/uploads/
 .pytest_cache/

@@ -1,16 +1,6 @@
 {% extends "base.html" %}
 {% block body %}
-<div class="admin-shell">
-  <nav class="admin-nav">
-    <a class="{{ 'active' if active == 'dashboard' else '' }}" href="/admin">Dashboard</a>
-    <a class="{{ 'active' if active == 'users' else '' }}" href="/admin/users">Atendentes</a>
-    <a class="{{ 'active' if active == 'channels' else '' }}" href="/admin/channels">Canais</a>
-    <a class="{{ 'active' if active == 'clients' else '' }}" href="/admin/clients">Clientes</a>
-    <a class="{{ 'active' if active == 'quick' else '' }}" href="/admin/quick-replies">Mensagens rápidas</a>
-    <a href="/agent">Tela de atendimento</a>
-  </nav>
-  <main class="content">
-    {% block admin_content %}{% endblock %}
-  </main>
-</div>
+<main class="content">
+  {% block admin_content %}{% endblock %}
+</main>
 {% endblock %}

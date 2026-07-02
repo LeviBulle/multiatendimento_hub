@@ -9,7 +9,7 @@ from app.routes import admin, agent, auth
 
 
 def create_app() -> FastAPI:
-    app = FastAPI(title="MultiAtendimento Hub")
+    app = FastAPI(title="Ellub Chat")
     app.mount("/static", StaticFiles(directory="app/static"), name="static")
     app.include_router(auth.router)
     app.include_router(admin.router)

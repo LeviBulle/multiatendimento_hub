@@ -1,4 +1,4 @@
-# MultiAtendimento Hub
+# Ellub Chat
 
 MVP de uma plataforma de atendimento multiagente inspirada em atendimento via WhatsApp, Instagram e Facebook. As integrações são simuladas nesta primeira versão, mas a estrutura já separa modelos, rotas e serviços para evoluir depois.
 
@@ -13,6 +13,16 @@ MVP de uma plataforma de atendimento multiagente inspirada em atendimento via Wh
 ## Como rodar
 
 Requisito: Python 3.10 ou superior.
+
+### Jeito mais facil no Windows
+
+Dê dois cliques em `abrir_programa.bat`.
+
+Ele abre o navegador em `http://127.0.0.1:8000` e deixa o servidor rodando em uma janela. Para encerrar o programa, feche essa janela ou pressione `Ctrl+C`.
+
+Na primeira vez, se ainda nao existir `.env`, o arquivo sera criado automaticamente a partir de `.env.example`.
+
+### Rodando manualmente
 
 ```bash
 python -m venv .venv

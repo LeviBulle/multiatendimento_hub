@@ -4,7 +4,7 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
 class Settings(BaseSettings):
-    app_name: str = "MultiAtendimento Hub"
+    app_name: str = "Ellub Chat"
     secret_key: str = "troque-esta-chave-em-producao"
     algorithm: str = "HS256"
     access_token_expire_minutes: int = 480

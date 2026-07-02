@@ -3,20 +3,98 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>{{ title or "MultiAtendimento Hub" }}</title>
-  <link rel="stylesheet" href="{{ url_for('static', path='/css/app.css') }}">
+  <title>{{ title or "Ellub Chat" }}</title>
+  <link rel="stylesheet" href="{{ url_for('static', path='/css/app.css') }}?v=ellub-chat-13">
 </head>
 <body>
   {% if current_user %}
-  <header class="topbar">
-    <a class="brand" href="{{ '/admin' if current_user.role == 'admin' else '/agent' }}">MultiAtendimento Hub</a>
-    <div class="userbar">
-      <span>{{ current_user.name }} · {{ "Administrador" if current_user.role == "admin" else "Atendente" }}</span>
-      <a href="/logout">Sair</a>
-    </div>
-  </header>
+  {% set path = request.url.path %}
+  <div class="app-layout">
+    <aside class="side-nav">
+      <a class="side-brand" href="{{ '/admin' if current_user.role == 'admin' else '/agent' }}">
+        <span class="brand-mark">E</span>
+        <span class="brand-text">Ellub Chat</span>
+      </a>
+      <button class="sidebar-toggle" type="button" title="Ocultar menu lateral" aria-label="Ocultar menu lateral" data-toggle-sidebar onclick="toggleSidebarCompact()"></button>
+      <nav class="side-menu">
+        <button class="side-group active" type="button" data-toggle-ellub aria-expanded="true" onclick="toggleEllubMenu()">
+          <span class="nav-icon">E</span>
+          <span>Ellub Chat</span>
+          <span class="chevron">v</span>
+        </button>
+        <div class="ellub-submenu" data-ellub-submenu>
+          <a class="{{ 'active' if path.startswith('/agent') else '' }}" href="/agent"><span class="nav-icon">C</span>Conversas</a>
+          <a class="{{ 'active' if path == '/admin' else '' }}" href="/admin"><span class="nav-icon">D</span>Dashboard</a>
+          <a class="{{ 'active' if path.startswith('/admin/users') else '' }}" href="/admin/users"><span class="nav-icon">A</span>Atendimentos</a>
+          <a class="{{ 'active' if path.startswith('/admin/channels') else '' }}" href="/admin/channels"><span class="nav-icon">I</span>Instancias</a>
+          <a class="{{ 'active' if path.startswith('/admin/clients') else '' }}" href="/admin/clients"><span class="nav-icon">P</span>Preferencias</a>
+        </div>
+        <a class="{{ 'active' if path.startswith('/admin/quick-replies') else '' }}" href="/admin/quick-replies"><span class="nav-icon">M</span>Cadastros</a>
+      </nav>
+    </aside>
+
+    <section class="app-stage">
+      <header class="topbar">
+        <form class="global-search" action="/agent" method="get">
+          <span class="search-icon"></span>
+          <input name="q" placeholder="Pesquisar: (Ctrl+/)">
+        </form>
+        <div class="top-actions">
+          <button class="plain-icon" type="button" title="Ajuda">?</button>
+          <button class="plain-icon" type="button" title="Idioma">A</button>
+          <button class="plain-icon" type="button" title="Tema">C</button>
+          <button class="plain-icon" type="button" title="Notificacoes">!</button>
+          <a class="user-chip" href="/logout" title="Sair">{{ current_user.name[:1] }}<span></span></a>
+        </div>
+      </header>
+      <main class="app-main">
   {% endif %}
+
   {% block body %}{% endblock %}
-  <script src="{{ url_for('static', path='/js/app.js') }}"></script>
+
+  {% if current_user %}
+      </main>
+    </section>
+  </div>
+  {% endif %}
+  <script>
+    function applyEllubMenuState(collapsed) {
+      var sideNav = document.querySelector(".side-nav");
+      var toggle = document.querySelector("[data-toggle-ellub]");
+      if (!sideNav || !toggle) return;
+      sideNav.classList.toggle("ellub-collapsed", collapsed);
+      toggle.setAttribute("aria-expanded", collapsed ? "false" : "true");
+    }
+
+    function toggleEllubMenu() {
+      var sideNav = document.querySelector(".side-nav");
+      if (!sideNav) return;
+      var collapsed = !sideNav.classList.contains("ellub-collapsed");
+      applyEllubMenuState(collapsed);
+      localStorage.setItem("ellubMenuCollapsed", collapsed ? "1" : "0");
+    }
+
+    applyEllubMenuState(localStorage.getItem("ellubMenuCollapsed") === "1");
+
+    function applySidebarCompactState(compact) {
+      var appLayout = document.querySelector(".app-layout");
+      var toggle = document.querySelector("[data-toggle-sidebar]");
+      if (!appLayout || !toggle) return;
+      appLayout.classList.toggle("sidebar-compact", compact);
+      toggle.setAttribute("aria-label", compact ? "Mostrar menu lateral" : "Ocultar menu lateral");
+      toggle.setAttribute("title", compact ? "Mostrar menu lateral" : "Ocultar menu lateral");
+    }
+
+    function toggleSidebarCompact() {
+      var appLayout = document.querySelector(".app-layout");
+      if (!appLayout) return;
+      var compact = !appLayout.classList.contains("sidebar-compact");
+      applySidebarCompactState(compact);
+      localStorage.setItem("ellubSidebarCompact", compact ? "1" : "0");
+    }
+
+    applySidebarCompactState(localStorage.getItem("ellubSidebarCompact") === "1");
+  </script>
+  <script src="{{ url_for('static', path='/js/app.js') }}?v=ellub-chat-13"></script>
 </body>
 </html>

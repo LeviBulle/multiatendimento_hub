@@ -12,7 +12,7 @@ from app.models.quick_reply import QuickReply
 from app.models.user import User
 from app.services.clients import upsert_client_fields
 from app.services.metrics import get_admin_metrics
-from app.services.quick_replies import normalize_shortcut
+from app.services.quick_replies import TEMPLATE_VARIABLES, normalize_shortcut
 
 router = APIRouter(prefix="/admin")
 templates = Jinja2Templates(directory="app/templates")
@@ -81,19 +81,110 @@ def clients_page(request: Request, edit: int | None = None, db: Session = Depend
 
 
 @router.post("/clients")
-def create_client(full_name: str = Form(...), phone: str = Form(""), email: str = Form(""), address: str = Form(""), notes: str = Form(""), db: Session = Depends(get_db), current_user: User = Depends(require_admin)):
+def create_client(
+    full_name: str = Form(...),
+    preferred_name: str = Form(""),
+    birth_date: str = Form(""),
+    gender: str = Form(""),
+    phone: str = Form(""),
+    phone_country_code: str = Form(""),
+    phone_area_code: str = Form(""),
+    phone_number: str = Form(""),
+    email: str = Form(""),
+    cpf: str = Form(""),
+    rg: str = Form(""),
+    address: str = Form(""),
+    zip_code: str = Form(""),
+    address_number: str = Form(""),
+    address_complement: str = Form(""),
+    reference_point: str = Form(""),
+    fixed_location: str = Form(""),
+    notes: str = Form(""),
+    restrictions: str = Form(""),
+    complaints: str = Form(""),
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_admin),
+):
     client = Client(full_name="", first_name="")
-    upsert_client_fields(client, full_name, phone, email, address, notes)
+    upsert_client_fields(
+        client,
+        full_name,
+        phone,
+        email,
+        address,
+        notes,
+        preferred_name=preferred_name,
+        birth_date=birth_date,
+        gender=gender,
+        cpf=cpf,
+        rg=rg,
+        zip_code=zip_code,
+        address_number=address_number,
+        address_complement=address_complement,
+        reference_point=reference_point,
+        fixed_location=fixed_location,
+        restrictions=restrictions,
+        complaints=complaints,
+        phone_country_code=phone_country_code,
+        phone_area_code=phone_area_code,
+        phone_number=phone_number,
+    )
     db.add(client)
     db.commit()
     return RedirectResponse("/admin/clients", status_code=303)
 
 
 @router.post("/clients/{client_id}/edit")
-def edit_client(client_id: int, full_name: str = Form(...), phone: str = Form(""), email: str = Form(""), address: str = Form(""), notes: str = Form(""), db: Session = Depends(get_db), current_user: User = Depends(require_admin)):
+def edit_client(
+    client_id: int,
+    full_name: str = Form(...),
+    preferred_name: str = Form(""),
+    birth_date: str = Form(""),
+    gender: str = Form(""),
+    phone: str = Form(""),
+    phone_country_code: str = Form(""),
+    phone_area_code: str = Form(""),
+    phone_number: str = Form(""),
+    email: str = Form(""),
+    cpf: str = Form(""),
+    rg: str = Form(""),
+    address: str = Form(""),
+    zip_code: str = Form(""),
+    address_number: str = Form(""),
+    address_complement: str = Form(""),
+    reference_point: str = Form(""),
+    fixed_location: str = Form(""),
+    notes: str = Form(""),
+    restrictions: str = Form(""),
+    complaints: str = Form(""),
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_admin),
+):
     client = db.get(Client, client_id)
     if client:
-        upsert_client_fields(client, full_name, phone, email, address, notes)
+        upsert_client_fields(
+            client,
+            full_name,
+            phone,
+            email,
+            address,
+            notes,
+            preferred_name=preferred_name,
+            birth_date=birth_date,
+            gender=gender,
+            cpf=cpf,
+            rg=rg,
+            zip_code=zip_code,
+            address_number=address_number,
+            address_complement=address_complement,
+            reference_point=reference_point,
+            fixed_location=fixed_location,
+            restrictions=restrictions,
+            complaints=complaints,
+            phone_country_code=phone_country_code,
+            phone_area_code=phone_area_code,
+            phone_number=phone_number,
+        )
         db.commit()
     return RedirectResponse("/admin/clients", status_code=303)
 
@@ -101,7 +192,11 @@ def edit_client(client_id: int, full_name: str = Form(...), phone: str = Form(""
 @router.get("/quick-replies")
 def quick_replies_page(request: Request, db: Session = Depends(get_db), current_user: User = Depends(require_admin)):
     replies = db.query(QuickReply).filter(QuickReply.type == "global").order_by(QuickReply.shortcut).all()
-    return templates.TemplateResponse(request, "admin/quick_replies.html", {"current_user": current_user, "active": "quick", "replies": replies})
+    return templates.TemplateResponse(
+        request,
+        "admin/quick_replies.html",
+        {"current_user": current_user, "active": "quick", "replies": replies, "template_variables": TEMPLATE_VARIABLES},
+    )
 
 
 @router.post("/quick-replies")
