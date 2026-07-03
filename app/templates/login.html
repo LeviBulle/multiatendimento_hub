@@ -4,24 +4,35 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Login - Ellub Chat</title>
-  <link rel="stylesheet" href="{{ url_for('static', path='/css/app.css') }}?v=ellub-chat-13">
+  <link rel="stylesheet" href="{{ url_for('static', path='/css/app.css') }}?v=ellub-chat-47">
+  <meta name="csrf-token" content="{{ request.state.csrf_token }}">
 </head>
 <body class="login-page">
   <main class="login-box">
     <h1>Ellub Chat</h1>
     <p>Entre para gerenciar conversas, clientes e atendimentos simulados.</p>
+    <div class="demo-banner">Ambiente demonstrativo - canais e integracoes simulados.</div>
     {% if error %}<div class="alert">{{ error }}</div>{% endif %}
     <form class="form-grid" method="post" action="/login">
+      <input type="hidden" name="csrf_token" value="{{ request.state.csrf_token }}">
       <div class="form-row">
         <label for="email">E-mail</label>
-        <input id="email" name="email" type="email" value="admin@hub.local" required>
+        <input id="email" name="email" type="email" autocomplete="username" required>
       </div>
       <div class="form-row">
         <label for="password">Senha</label>
-        <input id="password" name="password" type="password" value="admin123" required>
+        <input id="password" name="password" type="password" autocomplete="current-password" required>
       </div>
       <button class="button" type="submit">Entrar</button>
     </form>
+    {% if demo_mode %}
+    <section class="demo-credentials">
+      <strong>Credenciais de demonstracao</strong>
+      <span>Admin: admin@hub.local / admin123</span>
+      <span>Atendente: ana@hub.local / ana123</span>
+      <small>Exibidas apenas quando DEMO_MODE=true.</small>
+    </section>
+    {% endif %}
   </main>
 </body>
 </html>

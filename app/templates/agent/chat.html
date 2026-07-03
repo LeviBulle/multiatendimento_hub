@@ -5,7 +5,10 @@
     <form class="inbox-search" method="get" action="/agent">
       <input type="hidden" name="tab" value="{{ filters.tab }}">
       {% for agent_id in filters.agent_ids %}<input type="hidden" name="agent_id" value="{{ agent_id }}">{% endfor %}
-      {% if filters.channel %}<input type="hidden" name="channel" value="{{ filters.channel }}">{% endif %}
+      {% for channel_id in filters.channel_ids %}<input type="hidden" name="channel_id" value="{{ channel_id }}">{% endfor %}
+      {% if filters.unread %}<input type="hidden" name="unread" value="1">{% endif %}
+      {% if filters.expired %}<input type="hidden" name="expired" value="1">{% endif %}
+      {% if filters.favorites %}<input type="hidden" name="favorites" value="1">{% endif %}
       <input name="q" value="{{ filters.search }}" placeholder="Procurar ...">
       <button class="filter-button" type="button" title="Filtros avancados" aria-label="Filtros avancados" data-open-modal="advanced-filter-modal"></button>
     </form>
@@ -30,17 +33,18 @@
     </nav>
 
     <div class="inbox-list">
+      {% if error %}<div class="alert">{{ error }}</div>{% endif %}
       {% for item in conversations %}
       <a class="inbox-item {{ 'active' if conversation and item.id == conversation.id else '' }}" href="/agent/conversations/{{ item.id }}{% if list_query %}?{{ list_query }}{% endif %}">
         <span class="avatar-sm">{{ item.client.first_name[:1] or item.client.full_name[:1] }}</span>
         <span class="platform-dot">{{ item.channel.type[:1] }}</span>
         <span class="inbox-copy">
           <strong>{{ item.client.full_name|upper }}</strong>
-          <small>{{ item.client.phone or item.channel.name }}</small>
-          <em>{{ item.agent.name if item.agent else "Sem atendente" }}</em>
+          <small><span class="inbox-preview">{{ item.last_preview }}</span>{% if item.unread %}<span class="online-dot"></span>{% endif %}</small>
+          <em>{{ item.agent.name if item.agent else "Sem atendente" }}{% if item.is_expired %} - vencida{% endif %}</em>
         </span>
         <span class="inbox-time">{{ item.time_since_last }}</span>
-        {% if item.unread %}<span class="online-dot"></span>{% endif %}
+        {% if item.is_favorite %}<span class="favorite-dot">*</span>{% endif %}
       </a>
       {% else %}
       <div class="empty-list">Nenhuma conversa encontrada.</div>
@@ -68,29 +72,48 @@
       </div>
       <div class="conversation-status">
         <span>{{ conversation.status|replace("aberta", "Em Atendimento")|replace("pendente", "Pendente")|replace("finalizada", "Concluido") }}</span>
-        <small>{{ conversation.agent.name if conversation.agent else "Sem atendente" }}</small>
+        <small>Responsavel: {{ conversation.agent.name if conversation.agent else "Sem atendente" }}</small>
       </div>
       <div class="conversation-actions">
         <form method="post" action="/agent/conversations/{{ conversation.id }}/status">
+          <input type="hidden" name="csrf_token" value="{{ request.state.csrf_token }}">
           <input type="hidden" name="status" value="finalizada">
           <button class="tool-icon" type="submit" title="Finalizar">OK</button>
+        </form>
+        <form method="post" action="/agent/conversations/{{ conversation.id }}/favorite">
+          <input type="hidden" name="csrf_token" value="{{ request.state.csrf_token }}">
+          <button class="tool-icon" type="submit" title="Favoritar">{{ '*' if conversation.is_favorite else '☆' }}</button>
         </form>
         <button class="tool-icon" type="button" title="Dados do cliente" data-toggle-client-panel>P</button>
         <button class="tool-icon" type="button" title="Acoes" data-toggle-menu="conversation-menu">...</button>
         <div class="action-menu" id="conversation-menu">
-          <form method="post" action="/agent/conversations/{{ conversation.id }}/status"><input type="hidden" name="status" value="aberta"><button type="submit">Atendimento</button></form>
-          <form method="post" action="/agent/conversations/{{ conversation.id }}/status"><input type="hidden" name="status" value="pendente"><button type="submit">Cancelar</button></form>
+          <form method="post" action="/agent/conversations/{{ conversation.id }}/status"><input type="hidden" name="csrf_token" value="{{ request.state.csrf_token }}"><input type="hidden" name="status" value="aberta"><button type="submit">Atendimento</button></form>
+          <form method="post" action="/agent/conversations/{{ conversation.id }}/status"><input type="hidden" name="csrf_token" value="{{ request.state.csrf_token }}"><input type="hidden" name="status" value="pendente"><button type="submit">Pendente</button></form>
           <button type="button" data-toggle-client-panel>Dados do cliente</button>
+          <button type="button" data-open-modal="transfer-modal">Transferir</button>
         </div>
       </div>
     </header>
 
     <section class="conversation-messages">
       {% for message in messages %}
-      <article class="message-row {{ 'agent' if message.sender == 'atendente' else 'customer' }} {{ 'internal' if message.is_internal else '' }}">
+      <article class="message-row {{ 'agent' if message.sender == 'atendente' or message.is_internal else 'customer' }} {{ 'internal' if message.is_internal else '' }}">
         <span class="avatar-xs">{{ message.sender[:1] }}</span>
         <div class="bubble">
+          {% if message.author_user %}<strong class="message-author">{{ message.author_user.name }}</strong>{% endif %}
           <p>{{ message.text }}</p>
+          {% if message.attachment_stored_name %}
+            {% set file_url = url_for('static', path='/uploads/' ~ message.attachment_stored_name) %}
+            {% if message.attachment_mime_type.startswith('image/') %}
+              <img class="attachment-preview" src="{{ file_url }}" alt="{{ message.attachment_original_name }}">
+            {% elif message.attachment_mime_type.startswith('audio/') %}
+              <audio controls src="{{ file_url }}"></audio>
+            {% elif message.attachment_mime_type == 'application/pdf' %}
+              <a class="attachment-link" href="{{ file_url }}" target="_blank" rel="noopener">Abrir PDF: {{ message.attachment_original_name }}</a>
+            {% else %}
+              <a class="attachment-link" href="{{ file_url }}" download>Baixar anexo: {{ message.attachment_original_name }}</a>
+            {% endif %}
+          {% endif %}
           <small>{{ message.created_at.strftime("%H:%M:%S, %d/%m/%Y") }}</small>
         </div>
       </article>
@@ -100,22 +123,24 @@
     </section>
 
     <form class="message-composer" method="post" action="/agent/conversations/{{ conversation.id }}/messages" enctype="multipart/form-data">
+      <input type="hidden" name="csrf_token" value="{{ request.state.csrf_token }}">
       <div class="composer-tabs">
         <label><input type="radio" name="composer_mode" value="message" checked> Mensagem</label>
         <label><input type="radio" name="composer_mode" value="internal"> Anotacoes Internas</label>
         <button type="button" data-open-modal="templates-modal">Modelo de Mensagem</button>
       </div>
       <div class="composer-line">
-        <button class="attach-button" type="button" title="Anexar arquivo" aria-label="Anexar arquivo" data-attach-button></button>
+        <button class="attach-button" type="button" title="Anexar arquivo" aria-label="Anexar arquivo" data-attach-button>+</button>
         <input id="attachment_input" name="attachment" type="file" hidden>
-        <textarea id="message_text" name="text" placeholder="Digite sua mensagem ou use / para mensagens padrao." data-shortcuts='{{ shortcuts|tojson }}'></textarea>
+        <button class="emoji-button" type="button" title="Emoji" aria-label="Emoji" data-emoji-button></button>
+        <textarea id="message_text" name="text" placeholder="Digite uma mensagem ou use / para mensagem rapida" data-shortcuts='{{ shortcuts|tojson }}' data-mentions='{{ mention_users|tojson }}'></textarea>
         <input type="hidden" name="is_internal" value="">
         <div class="composer-tools">
-          <button class="emoji-button" type="button" title="Emoji" aria-label="Emoji" data-emoji-button>:)</button>
-          <button class="mic-button" type="button" title="Gravar audio" aria-label="Gravar audio" data-audio-button>mic</button>
+          <button class="mic-button" type="button" title="Gravar audio" aria-label="Gravar audio" data-audio-button></button>
           <button class="send-icon" type="submit" title="Enviar">&gt;</button>
         </div>
         <div class="quick-reply-menu" data-quick-reply-menu></div>
+        <div class="mention-menu" data-mention-menu></div>
         <div class="emoji-menu" data-emoji-menu>
           <button type="button">:)</button>
           <button type="button">:D</button>
@@ -139,6 +164,7 @@
   <aside class="client-quick-panel" data-client-panel>
     <button class="client-panel-toggle" type="button" title="Ocultar dados do cliente" aria-label="Ocultar dados do cliente" data-toggle-client-panel></button>
     <form class="client-quick-form" method="post" action="/agent/conversations/{{ conversation.id }}/client">
+      <input type="hidden" name="csrf_token" value="{{ request.state.csrf_token }}">
       <section class="client-info-block">
         <div class="quick-field wide">
           <label>nome completo</label>
@@ -235,8 +261,6 @@
   {% endif %}
 </div>
 
-<button class="floating-settings" type="button" title="Configuracoes">#</button>
-
 <div class="modal-backdrop" id="advanced-filter-modal" aria-hidden="true">
   <section class="modal filter-modal" role="dialog" aria-modal="true" aria-labelledby="filter-title">
     <div class="modal-header">
@@ -264,26 +288,26 @@
           </div>
         </div>
         <div class="form-row">
-          <label>Canal</label>
-          <select name="channel">
+          <label>Canal especifico</label>
+          <select name="channel_id">
             <option value="">Todas</option>
-            {% for channel in channels|map(attribute='type')|unique %}
-            <option value="{{ channel }}" {{ 'selected' if filters.channel == channel else '' }}>{{ channel }}</option>
+            {% for channel in channels %}
+            <option value="{{ channel.id }}" {{ 'selected' if channel.id in filters.channel_ids else '' }}>{{ channel.type }} - {{ channel.name }}</option>
             {% endfor %}
           </select>
         </div>
       </div>
       <div class="switch-row">
-        <label><input type="checkbox" name="unread" value="1"> Nao lidas</label>
-        <label><input type="checkbox" name="expired" value="1"> Vencidas</label>
-        <label><input type="checkbox" name="favorites" value="1"> Somente favoritos</label>
+        <label><input type="checkbox" name="unread" value="1" {{ 'checked' if filters.unread else '' }}> Nao lidas</label>
+        <label><input type="checkbox" name="expired" value="1" {{ 'checked' if filters.expired else '' }}> Vencidas</label>
+        <label><input type="checkbox" name="favorites" value="1" {{ 'checked' if filters.favorites else '' }}> Somente favoritos</label>
       </div>
       <table class="filter-table">
         <thead><tr><th>Visualizar</th><th>Status</th><th>Instancia</th></tr></thead>
         <tbody>
           {% for channel in channels %}
           <tr>
-            <td><input type="checkbox" name="channel" value="{{ channel.type }}"></td>
+            <td><input type="checkbox" name="channel_id" value="{{ channel.id }}" {{ 'checked' if channel.id in filters.channel_ids else '' }}></td>
             <td><span class="connected">Conectado</span></td>
             <td><span class="avatar-xs">{{ channel.type[:1] }}</span> {{ channel.name }}</td>
           </tr>
@@ -306,6 +330,7 @@
       <button class="icon-button ghost" type="button" aria-label="Fechar" data-close-modal>x</button>
     </div>
     <form class="form-grid" method="post" action="/agent/conversations">
+      <input type="hidden" name="csrf_token" value="{{ request.state.csrf_token }}">
       <div class="form-row"><label>Nome do cliente</label><input name="full_name" required></div>
       <div class="two-col">
         <div class="form-row"><label>Telefone</label><input name="phone" placeholder="+55 11 99999-0000"></div>
@@ -326,6 +351,26 @@
 </div>
 
 {% if conversation %}
+<div class="modal-backdrop" id="transfer-modal" aria-hidden="true">
+  <section class="modal" role="dialog" aria-modal="true" aria-labelledby="transfer-title">
+    <div class="modal-header">
+      <h2 id="transfer-title">Transferir atendimento</h2>
+      <button class="icon-button ghost" type="button" aria-label="Fechar" data-close-modal>x</button>
+    </div>
+    <form class="form-grid" method="post" action="/agent/conversations/{{ conversation.id }}/transfer">
+      <input type="hidden" name="csrf_token" value="{{ request.state.csrf_token }}">
+      <div class="form-row">
+        <label>Novo responsavel</label>
+        <select name="agent_id" required>
+          {% for agent in agents %}
+          <option value="{{ agent.id }}" {{ 'selected' if conversation.agent_id == agent.id else '' }}>{{ agent.name }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <button class="button" type="submit">Transferir</button>
+    </form>
+  </section>
+</div>
 <div class="modal-backdrop" id="templates-modal" aria-hidden="true">
   <section class="modal" role="dialog" aria-modal="true" aria-labelledby="templates-title">
     <div class="modal-header">

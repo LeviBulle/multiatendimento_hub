@@ -2,7 +2,70 @@ function applyQuickReply(content) {
   const textarea = document.querySelector("#message_text");
   if (!textarea) return;
   textarea.value = content;
+  textarea.dataset.quickReplyJustApplied = String(Date.now());
+  resizeComposerTextarea(textarea);
   textarea.focus();
+}
+
+function applyQuickReplyButton(button) {
+  if (!button) return false;
+  applyQuickReply(decodeURIComponent(button.dataset.quickText || ""));
+  const menu = document.querySelector("[data-quick-reply-menu]");
+  if (menu) menu.classList.remove("is-open");
+  return true;
+}
+
+function selectQuickReplyOption(menu, nextIndex) {
+  const options = Array.from(menu.querySelectorAll("[data-quick-text]"));
+  if (!options.length) return;
+  const normalizedIndex = (nextIndex + options.length) % options.length;
+  options.forEach((option, index) => {
+    option.classList.toggle("is-selected", index === normalizedIndex);
+    option.setAttribute("aria-selected", index === normalizedIndex ? "true" : "false");
+  });
+}
+
+function selectedQuickReplyOption(menu) {
+  return menu.querySelector("[data-quick-text].is-selected") || menu.querySelector("[data-quick-text]");
+}
+
+function selectMenuOption(menu, selector, selectedClass, nextIndex) {
+  const options = Array.from(menu.querySelectorAll(selector));
+  if (!options.length) return;
+  const normalizedIndex = (nextIndex + options.length) % options.length;
+  options.forEach((option, index) => {
+    option.classList.toggle(selectedClass, index === normalizedIndex);
+    option.setAttribute("aria-selected", index === normalizedIndex ? "true" : "false");
+  });
+}
+
+function currentMentionToken(textarea) {
+  const cursor = textarea.selectionStart || textarea.value.length;
+  const beforeCursor = textarea.value.slice(0, cursor);
+  const match = beforeCursor.match(/(^|\s)@([\p{L}\p{N}._-]*)$/u);
+  if (!match) return null;
+  return {
+    start: beforeCursor.length - match[0].trimStart().length,
+    end: cursor,
+    query: match[2].toLocaleLowerCase("pt-BR"),
+  };
+}
+
+function insertMention(textarea, mention) {
+  const token = currentMentionToken(textarea);
+  if (!token) return false;
+  textarea.value = `${textarea.value.slice(0, token.start)}${mention} ${textarea.value.slice(token.end)}`;
+  textarea.selectionStart = token.start + mention.length + 1;
+  textarea.selectionEnd = token.start + mention.length + 1;
+  resizeComposerTextarea(textarea);
+  textarea.focus();
+  const menu = document.querySelector("[data-mention-menu]");
+  if (menu) menu.classList.remove("is-open");
+  return true;
+}
+
+function selectedMentionOption(menu) {
+  return menu.querySelector("[data-mention-text].is-selected") || menu.querySelector("[data-mention-text]");
 }
 
 function insertAtCursor(textarea, value) {
@@ -15,8 +78,8 @@ function insertAtCursor(textarea, value) {
 }
 
 function resizeComposerTextarea(textarea) {
-  textarea.style.height = "56px";
-  textarea.style.height = `${Math.min(textarea.scrollHeight, 150)}px`;
+  textarea.style.height = "24px";
+  textarea.style.height = `${Math.min(textarea.scrollHeight, 96)}px`;
 }
 
 function onlyDigits(value) {
@@ -121,6 +184,18 @@ function closeModal(modal) {
   modal.setAttribute("aria-hidden", "true");
 }
 
+function scrollConversationToLatest() {
+  const messagePane = document.querySelector(".conversation-messages");
+  if (!messagePane) return;
+  messagePane.scrollTop = messagePane.scrollHeight;
+}
+
+function focusMessageComposer() {
+  const textarea = document.querySelector("#message_text");
+  if (!textarea) return;
+  textarea.focus({ preventScroll: true });
+}
+
 function setEllubCollapsed(collapsed) {
   const sideNav = document.querySelector(".side-nav");
   const toggle = document.querySelector("[data-toggle-ellub]");
@@ -141,6 +216,16 @@ function setSidebarCompact(compact) {
 }
 
 document.addEventListener("DOMContentLoaded", () => {
+  const csrf = document.querySelector("meta[name='csrf-token']")?.content || "";
+  document.querySelectorAll("form[method='post']").forEach((form) => {
+    if (!form.querySelector("input[name='csrf_token']")) {
+      const input = document.createElement("input");
+      input.type = "hidden";
+      input.name = "csrf_token";
+      input.value = csrf;
+      form.prepend(input);
+    }
+  });
   setEllubCollapsed(localStorage.getItem("ellubMenuCollapsed") === "1");
   setSidebarCompact(localStorage.getItem("ellubSidebarCompact") === "1");
   document.querySelectorAll("#message_text").forEach(resizeComposerTextarea);
@@ -154,6 +239,14 @@ document.addEventListener("DOMContentLoaded", () => {
   document.querySelectorAll("[data-mask-phone-number]").forEach((input) => { input.value = maskPhoneNumber(input.value); });
   const card = document.querySelector(".nexys-card");
   if (card) card.classList.toggle("client-panel-hidden", localStorage.getItem("ellubClientPanelHidden") === "1");
+  document.documentElement.dataset.theme = localStorage.getItem("ellubTheme") || "light";
+  scrollConversationToLatest();
+  focusMessageComposer();
+});
+
+window.addEventListener("load", () => {
+  scrollConversationToLatest();
+  focusMessageComposer();
 });
 
 document.addEventListener("click", (event) => {
@@ -237,7 +330,15 @@ document.addEventListener("click", (event) => {
     closeModal(event.target);
   }
 
-  document.querySelectorAll(".action-menu.is-open").forEach((menu) => {
+  const themeToggle = event.target.closest("[data-theme-toggle]");
+  if (themeToggle) {
+    const next = document.documentElement.dataset.theme === "dark" ? "light" : "dark";
+    document.documentElement.dataset.theme = next;
+    localStorage.setItem("ellubTheme", next);
+    return;
+  }
+
+  document.querySelectorAll(".action-menu.is-open, .notification-menu.is-open, .account-menu.is-open").forEach((menu) => {
     if (!menu.contains(event.target)) menu.classList.remove("is-open");
   });
 });
@@ -245,7 +346,7 @@ document.addEventListener("click", (event) => {
 document.addEventListener("keydown", (event) => {
   if (event.key !== "Escape") return;
   document.querySelectorAll(".modal-backdrop.is-open").forEach(closeModal);
-  document.querySelectorAll(".action-menu.is-open").forEach((menu) => menu.classList.remove("is-open"));
+  document.querySelectorAll(".action-menu.is-open, .notification-menu.is-open, .account-menu.is-open").forEach((menu) => menu.classList.remove("is-open"));
 });
 
 document.addEventListener("change", (event) => {
@@ -255,6 +356,7 @@ document.addEventListener("change", (event) => {
     const internalInput = composer ? composer.querySelector("input[name='is_internal']") : null;
     const textarea = composer ? composer.querySelector("#message_text") : null;
     const isInternal = mode.value === "internal";
+    if (composer) composer.classList.toggle("is-internal-mode", isInternal);
     if (internalInput) internalInput.value = isInternal ? "true" : "";
     if (textarea) {
       textarea.placeholder = isInternal
@@ -300,18 +402,35 @@ document.addEventListener("input", (event) => {
   if (!textarea) return;
   resizeComposerTextarea(textarea);
   const menu = document.querySelector("[data-quick-reply-menu]");
+  const mentionMenu = document.querySelector("[data-mention-menu]");
   if (!menu) return;
   const shortcuts = JSON.parse(textarea.dataset.shortcuts || "{}");
   const value = textarea.value.trim();
   if (!value.startsWith("/")) {
     menu.classList.remove("is-open");
+  } else {
+    const matches = Object.entries(shortcuts).filter(([shortcut]) => shortcut.startsWith(value));
+    menu.innerHTML = matches.map(([shortcut, rendered]) => (
+      `<button type="button" role="option" data-quick-text="${encodeURIComponent(rendered)}">${shortcut}</button>`
+    )).join("");
+    menu.classList.toggle("is-open", matches.length > 0);
+    if (matches.length > 0) selectQuickReplyOption(menu, 0);
+  }
+
+  if (!mentionMenu) return;
+  const composer = textarea.closest(".message-composer");
+  const token = composer?.classList.contains("is-internal-mode") ? currentMentionToken(textarea) : null;
+  if (!token) {
+    mentionMenu.classList.remove("is-open");
     return;
   }
-  const matches = Object.entries(shortcuts).filter(([shortcut]) => shortcut.startsWith(value));
-  menu.innerHTML = matches.map(([shortcut, rendered]) => (
-    `<button type="button" data-quick-text="${encodeURIComponent(rendered)}">${shortcut}</button>`
+  const mentionOptions = JSON.parse(textarea.dataset.mentions || "[]");
+  const mentionMatches = mentionOptions.filter((item) => item.name.toLocaleLowerCase("pt-BR").startsWith(token.query));
+  mentionMenu.innerHTML = mentionMatches.map((item) => (
+    `<button type="button" role="option" data-mention-text="${encodeURIComponent(item.insert)}">${item.name}</button>`
   )).join("");
-  menu.classList.toggle("is-open", matches.length > 0);
+  mentionMenu.classList.toggle("is-open", mentionMatches.length > 0);
+  if (mentionMatches.length > 0) selectMenuOption(mentionMenu, "[data-mention-text]", "is-selected", 0);
 });
 
 document.addEventListener("blur", (event) => {
@@ -321,7 +440,42 @@ document.addEventListener("blur", (event) => {
 
 document.addEventListener("keydown", (event) => {
   const textarea = event.target.closest("#message_text");
-  if (!textarea || event.key !== "Enter" || event.shiftKey) return;
+  if (!textarea || event.shiftKey) return;
+  const menu = document.querySelector("[data-quick-reply-menu].is-open");
+  const mentionMenu = document.querySelector("[data-mention-menu].is-open");
+  if (mentionMenu && (event.key === "ArrowDown" || event.key === "ArrowUp")) {
+    event.preventDefault();
+    const options = Array.from(mentionMenu.querySelectorAll("[data-mention-text]"));
+    const currentIndex = Math.max(0, options.findIndex((option) => option.classList.contains("is-selected")));
+    selectMenuOption(mentionMenu, "[data-mention-text]", "is-selected", currentIndex + (event.key === "ArrowDown" ? 1 : -1));
+    return;
+  }
+  if (menu && (event.key === "ArrowDown" || event.key === "ArrowUp")) {
+    event.preventDefault();
+    const options = Array.from(menu.querySelectorAll("[data-quick-text]"));
+    const currentIndex = Math.max(0, options.findIndex((option) => option.classList.contains("is-selected")));
+    selectQuickReplyOption(menu, currentIndex + (event.key === "ArrowDown" ? 1 : -1));
+    return;
+  }
+  if (event.key !== "Enter") return;
+  const mentionOption = mentionMenu ? selectedMentionOption(mentionMenu) : null;
+  if (mentionOption) {
+    event.preventDefault();
+    insertMention(textarea, decodeURIComponent(mentionOption.dataset.mentionText || ""));
+    return;
+  }
+  const quickReplyOption = menu ? selectedQuickReplyOption(menu) : null;
+  if (quickReplyOption) {
+    event.preventDefault();
+    applyQuickReplyButton(quickReplyOption);
+    return;
+  }
+  const appliedAt = Number(textarea.dataset.quickReplyJustApplied || "0");
+  if (appliedAt && Date.now() - appliedAt < 1200) {
+    event.preventDefault();
+    textarea.dataset.quickReplyJustApplied = "";
+    return;
+  }
   event.preventDefault();
   const form = textarea.closest("form");
   const attachment = form ? form.querySelector("#attachment_input") : null;
@@ -333,9 +487,14 @@ document.addEventListener("keydown", (event) => {
 document.addEventListener("click", (event) => {
   const quickButton = event.target.closest("[data-quick-text]");
   if (quickButton) {
-    applyQuickReply(decodeURIComponent(quickButton.dataset.quickText));
-    const menu = document.querySelector("[data-quick-reply-menu]");
-    if (menu) menu.classList.remove("is-open");
+    applyQuickReplyButton(quickButton);
+    return;
+  }
+
+  const mentionButton = event.target.closest("[data-mention-text]");
+  if (mentionButton) {
+    const textarea = document.querySelector("#message_text");
+    if (textarea) insertMention(textarea, decodeURIComponent(mentionButton.dataset.mentionText || ""));
     return;
   }
 

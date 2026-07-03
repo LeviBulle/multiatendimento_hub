@@ -1,6 +1,6 @@
 from datetime import datetime
 
-from sqlalchemy import Boolean, DateTime, ForeignKey, String, Text
+from sqlalchemy import Boolean, DateTime, ForeignKey, Integer, String, Text
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.db.base import Base
@@ -11,11 +11,17 @@ class Message(Base):
 
     id: Mapped[int] = mapped_column(primary_key=True)
     conversation_id: Mapped[int] = mapped_column(ForeignKey("conversations.id"))
+    author_user_id: Mapped[int | None] = mapped_column(ForeignKey("users.id"), nullable=True, index=True)
     sender: Mapped[str] = mapped_column(String(30))
     text: Mapped[str] = mapped_column(Text)
     status: Mapped[str] = mapped_column(String(30), default="enviada")
     is_internal: Mapped[bool] = mapped_column(Boolean, default=False)
     scheduled_for: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+    attachment_original_name: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    attachment_stored_name: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    attachment_mime_type: Mapped[str | None] = mapped_column(String(120), nullable=True)
+    attachment_size_bytes: Mapped[int | None] = mapped_column(Integer, nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
 
     conversation = relationship("Conversation", back_populates="messages")
+    author_user = relationship("User", back_populates="authored_messages")

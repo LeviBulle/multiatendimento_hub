@@ -1,14 +1,14 @@
 {% extends "admin/base.html" %}
 {% block admin_content %}
-<div class="page-title"><h1>Canais simulados</h1></div>
+<div class="page-title"><h1>Instancias simuladas</h1></div>
 <section class="panel">
-  <h2>Cadastrar canal</h2>
+  <h2>Cadastrar instancia</h2>
   <form class="form-grid" method="post" action="/admin/channels">
     <div class="two-col">
       <div class="form-row"><label>Nome</label><input name="name" placeholder="WhatsApp Principal" required></div>
       <div class="form-row"><label>Tipo</label><select name="type"><option>WhatsApp</option><option>Instagram</option><option>Facebook</option></select></div>
     </div>
-    <button class="button" type="submit">Criar canal</button>
+    <button class="button" type="submit">Criar instancia</button>
   </form>
 </section>
 <section class="panel">

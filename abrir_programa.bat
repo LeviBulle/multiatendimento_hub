@@ -29,6 +29,6 @@ echo.
 echo Uma janela do servidor sera aberta. Para encerrar o programa, feche essa janela ou pressione Ctrl+C nela.
 echo.
 
-start "Ellub Chat - Servidor" cmd /k ""%PYTHON_EXE%" -m uvicorn app.main:app --reload --host 127.0.0.1 --port 8000"
+start "Ellub Chat - Servidor" cmd /k ""%PYTHON_EXE%" -m alembic upgrade head && "%PYTHON_EXE%" -m uvicorn app.main:app --reload --host 127.0.0.1 --port 8000"
 timeout /t 4 /nobreak >nul
 start "" "%APP_URL%"

@@ -6,7 +6,19 @@ from app.models.conversation import Conversation
 from app.models.message import Message
 
 
-def create_message(db: Session, conversation: Conversation, sender: str, text: str, is_internal: bool = False, scheduled_for: datetime | None = None) -> Message:
+def create_message(
+    db: Session,
+    conversation: Conversation,
+    sender: str,
+    text: str,
+    is_internal: bool = False,
+    scheduled_for: datetime | None = None,
+    author_user_id: int | None = None,
+    attachment_original_name: str | None = None,
+    attachment_stored_name: str | None = None,
+    attachment_mime_type: str | None = None,
+    attachment_size_bytes: int | None = None,
+) -> Message:
     now = datetime.utcnow()
     is_future_schedule = scheduled_for and scheduled_for > now
     status = "agendada" if is_future_schedule else "enviada"
@@ -17,6 +29,11 @@ def create_message(db: Session, conversation: Conversation, sender: str, text: s
         is_internal=is_internal,
         scheduled_for=scheduled_for,
         status=status,
+        author_user_id=author_user_id,
+        attachment_original_name=attachment_original_name,
+        attachment_stored_name=attachment_stored_name,
+        attachment_mime_type=attachment_mime_type,
+        attachment_size_bytes=attachment_size_bytes,
     )
     if not is_internal and not is_future_schedule:
         conversation.last_message_at = now
@@ -42,8 +59,10 @@ def process_scheduled_messages(db: Session) -> int:
         message.created_at = now
         conversation = message.conversation
         conversation.last_message_at = now
-        if message.sender == "atendente" and conversation.first_response_at is None:
-            conversation.first_response_at = now
-            conversation.first_response_minutes = int((now - conversation.created_at).total_seconds() // 60)
+        if message.sender == "atendente":
+            conversation.unread = False
+            if conversation.first_response_at is None:
+                conversation.first_response_at = now
+                conversation.first_response_minutes = int((now - conversation.created_at).total_seconds() // 60)
     db.commit()
     return len(messages)

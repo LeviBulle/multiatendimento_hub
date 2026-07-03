@@ -1,6 +1,6 @@
 from datetime import datetime
 
-from sqlalchemy import DateTime, String, Text
+from sqlalchemy import DateTime, ForeignKey, String, Text
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.db.base import Base
@@ -10,6 +10,7 @@ class Client(Base):
     __tablename__ = "clients"
 
     id: Mapped[int] = mapped_column(primary_key=True)
+    workspace_id: Mapped[int] = mapped_column(ForeignKey("workspaces.id"), index=True)
     full_name: Mapped[str] = mapped_column(String(160), index=True)
     first_name: Mapped[str] = mapped_column(String(80), index=True)
     preferred_name: Mapped[str | None] = mapped_column(String(120), nullable=True)
@@ -33,4 +34,5 @@ class Client(Base):
     complaints: Mapped[str | None] = mapped_column(Text, nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
 
+    workspace = relationship("Workspace", back_populates="clients")
     conversations = relationship("Conversation", back_populates="client")
