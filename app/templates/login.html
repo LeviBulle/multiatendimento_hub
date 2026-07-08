@@ -4,14 +4,14 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Login - Ellub Chat</title>
-  <link rel="stylesheet" href="{{ url_for('static', path='/css/app.css') }}?v=ellub-chat-47">
+  <link rel="stylesheet" href="{{ url_for('static', path='/css/app.css') }}?v=ellub-chat-51">
   <meta name="csrf-token" content="{{ request.state.csrf_token }}">
 </head>
 <body class="login-page">
   <main class="login-box">
     <h1>Ellub Chat</h1>
     <p>Entre para gerenciar conversas, clientes e atendimentos simulados.</p>
-    <div class="demo-banner">Ambiente demonstrativo - canais e integracoes simulados.</div>
+    {% if demo_mode %}<div class="demo-banner">Ambiente demonstrativo - canais e integracoes simulados.</div>{% endif %}
     {% if error %}<div class="alert">{{ error }}</div>{% endif %}
     <form class="form-grid" method="post" action="/login">
       <input type="hidden" name="csrf_token" value="{{ request.state.csrf_token }}">

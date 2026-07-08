@@ -5,6 +5,7 @@ from app.models.channel import Channel
 from app.models.conversation import Conversation
 from app.models.message import Message
 from app.models.user import User
+from app.services.whatsapp_window_service import get_window_status, is_whatsapp_conversation
 
 
 def get_admin_metrics(db: Session, workspace_id: int) -> dict:
@@ -39,6 +40,13 @@ def get_admin_metrics(db: Session, workspace_id: int) -> dict:
         .group_by(Channel.name)
         .all()
     )
+    whatsapp_conversations = (
+        db.query(Conversation)
+        .join(Channel, Channel.id == Conversation.channel_id)
+        .filter(Conversation.workspace_id == workspace_id, Channel.workspace_id == workspace_id)
+        .all()
+    )
+    window_statuses = [get_window_status(item) for item in whatsapp_conversations if is_whatsapp_conversation(item)]
     return {
         "open_conversations": open_conversations,
         "closed_conversations": closed_conversations,
@@ -46,4 +54,8 @@ def get_admin_metrics(db: Session, workspace_id: int) -> dict:
         "avg_first_response_minutes": round(avg_first_response, 1),
         "messages_by_agent": messages_by_agent,
         "conversations_by_channel": conversations_by_channel,
+        "whatsapp_window_open": sum(status in {"active", "warning", "urgent"} for status in window_statuses),
+        "whatsapp_window_urgent": sum(status == "urgent" for status in window_statuses),
+        "whatsapp_window_closed": sum(status == "expired" for status in window_statuses),
+        "whatsapp_waiting_customer": sum(status == "waiting_for_customer" for status in window_statuses),
     }

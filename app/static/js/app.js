@@ -356,13 +356,15 @@ document.addEventListener("change", (event) => {
     const internalInput = composer ? composer.querySelector("input[name='is_internal']") : null;
     const textarea = composer ? composer.querySelector("#message_text") : null;
     const isInternal = mode.value === "internal";
+    const isWindowClosed = composer ? composer.classList.contains("whatsapp-window-closed") : false;
     if (composer) composer.classList.toggle("is-internal-mode", isInternal);
     if (internalInput) internalInput.value = isInternal ? "true" : "";
     if (textarea) {
       textarea.placeholder = isInternal
         ? "Escreva uma anotacao interna para este atendimento."
         : "Digite sua mensagem ou use / para mensagens padrao.";
-      textarea.focus();
+      textarea.disabled = isWindowClosed && !isInternal;
+      if (!textarea.disabled) textarea.focus();
     }
   }
 

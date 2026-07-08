@@ -1,4 +1,4 @@
-{% extends "base.html" %}
+﻿{% extends "base.html" %}
 {% block body %}
 <div class="nexys-card">
   <aside class="inbox-pane">
@@ -9,6 +9,7 @@
       {% if filters.unread %}<input type="hidden" name="unread" value="1">{% endif %}
       {% if filters.expired %}<input type="hidden" name="expired" value="1">{% endif %}
       {% if filters.favorites %}<input type="hidden" name="favorites" value="1">{% endif %}
+      {% if filters.whatsapp_window %}<input type="hidden" name="whatsapp_window" value="{{ filters.whatsapp_window }}">{% endif %}
       <input name="q" value="{{ filters.search }}" placeholder="Procurar ...">
       <button class="filter-button" type="button" title="Filtros avancados" aria-label="Filtros avancados" data-open-modal="advanced-filter-modal"></button>
     </form>
@@ -41,7 +42,22 @@
         <span class="inbox-copy">
           <strong>{{ item.client.full_name|upper }}</strong>
           <small><span class="inbox-preview">{{ item.last_preview }}</span>{% if item.unread %}<span class="online-dot"></span>{% endif %}</small>
-          <em>{{ item.agent.name if item.agent else "Sem atendente" }}{% if item.is_expired %} - vencida{% endif %}</em>
+          <span class="inbox-badges">
+            {% set responsible_label = item.agent.name if item.agent else "Sem atendente" %}
+            {% if item.whatsapp_window.is_applicable %}
+            <em
+              class="responsible-badge {{ item.whatsapp_window.status }}"
+              title="{{ item.whatsapp_window.tooltip }}"
+              data-whatsapp-window
+              data-window-kind="responsible"
+              data-window-agent-label="{{ responsible_label }}"
+              data-window-state="{{ item.whatsapp_window.status }}"
+              data-remaining-seconds="{{ item.whatsapp_window.remaining_seconds }}"
+            >{{ responsible_label }} <span data-window-label>{% if item.whatsapp_window.is_open %}- {{ item.whatsapp_window.compact_label }}{% elif item.whatsapp_window.status == "expired" %}- vencida{% else %}- aguardando{% endif %}</span></em>
+            {% else %}
+            <em class="responsible-badge {{ 'expired' if item.is_expired else '' }}">{{ responsible_label }}{% if item.is_expired %} - vencida{% endif %}</em>
+            {% endif %}
+          </span>
         </span>
         <span class="inbox-time">{{ item.time_since_last }}</span>
         {% if item.is_favorite %}<span class="favorite-dot">*</span>{% endif %}
@@ -73,6 +89,16 @@
       <div class="conversation-status">
         <span>{{ conversation.status|replace("aberta", "Em Atendimento")|replace("pendente", "Pendente")|replace("finalizada", "Concluido") }}</span>
         <small>Responsavel: {{ conversation.agent.name if conversation.agent else "Sem atendente" }}</small>
+        {% if conversation.whatsapp_window.is_applicable %}
+        <small
+          class="whatsapp-header-timer {{ conversation.whatsapp_window.status }}"
+          title="{{ conversation.whatsapp_window.tooltip }}"
+          data-whatsapp-window
+          data-window-compact="true"
+          data-window-state="{{ conversation.whatsapp_window.status }}"
+          data-remaining-seconds="{{ conversation.whatsapp_window.remaining_seconds }}"
+        >W <b data-window-label>{{ conversation.whatsapp_window.compact_label }}</b></small>
+        {% endif %}
       </div>
       <div class="conversation-actions">
         <form method="post" action="/agent/conversations/{{ conversation.id }}/status">
@@ -82,7 +108,7 @@
         </form>
         <form method="post" action="/agent/conversations/{{ conversation.id }}/favorite">
           <input type="hidden" name="csrf_token" value="{{ request.state.csrf_token }}">
-          <button class="tool-icon" type="submit" title="Favoritar">{{ '*' if conversation.is_favorite else '☆' }}</button>
+          <button class="tool-icon" type="submit" title="Favoritar">{{ '*' if conversation.is_favorite else 'â˜†' }}</button>
         </form>
         <button class="tool-icon" type="button" title="Dados do cliente" data-toggle-client-panel>P</button>
         <button class="tool-icon" type="button" title="Acoes" data-toggle-menu="conversation-menu">...</button>
@@ -91,6 +117,7 @@
           <form method="post" action="/agent/conversations/{{ conversation.id }}/status"><input type="hidden" name="csrf_token" value="{{ request.state.csrf_token }}"><input type="hidden" name="status" value="pendente"><button type="submit">Pendente</button></form>
           <button type="button" data-toggle-client-panel>Dados do cliente</button>
           <button type="button" data-open-modal="transfer-modal">Transferir</button>
+          {% if demo_mode %}<form method="post" action="/agent/conversations/{{ conversation.id }}/simulate-customer"><input type="hidden" name="csrf_token" value="{{ request.state.csrf_token }}"><button type="submit">Simular mensagem do cliente</button></form>{% endif %}
         </div>
       </div>
     </header>
@@ -102,6 +129,9 @@
         <div class="bubble">
           {% if message.author_user %}<strong class="message-author">{{ message.author_user.name }}</strong>{% endif %}
           <p>{{ message.text }}</p>
+          {% if message.message_kind == "template" and message.whatsapp_template %}
+          <small class="template-marker">Modelo WhatsApp: {{ message.whatsapp_template.name }}</small>
+          {% endif %}
           {% if message.attachment_stored_name %}
             {% set file_url = url_for('static', path='/uploads/' ~ message.attachment_stored_name) %}
             {% if message.attachment_mime_type.startswith('image/') %}
@@ -122,21 +152,24 @@
       {% endfor %}
     </section>
 
-    <form class="message-composer" method="post" action="/agent/conversations/{{ conversation.id }}/messages" enctype="multipart/form-data">
+    <form class="message-composer {{ 'whatsapp-window-closed' if conversation.whatsapp_window.is_applicable and not conversation.whatsapp_window.is_open else '' }}" method="post" action="/agent/conversations/{{ conversation.id }}/messages" enctype="multipart/form-data">
       <input type="hidden" name="csrf_token" value="{{ request.state.csrf_token }}">
       <div class="composer-tabs">
         <label><input type="radio" name="composer_mode" value="message" checked> Mensagem</label>
         <label><input type="radio" name="composer_mode" value="internal"> Anotacoes Internas</label>
-        <button type="button" data-open-modal="templates-modal">Modelo de Mensagem</button>
+        <button type="button" data-open-modal="templates-modal">{{ "Enviar modelo WhatsApp" if conversation.whatsapp_window.is_applicable and not conversation.whatsapp_window.is_open else "Modelo de Mensagem" }}</button>
       </div>
+      {% if conversation.whatsapp_window.is_applicable and not conversation.whatsapp_window.is_open %}
+      <div class="composer-window-alert">A janela de atendimento do WhatsApp expirou. Envie um modelo aprovado e aguarde uma nova mensagem do cliente.</div>
+      {% endif %}
       <div class="composer-line">
-        <button class="attach-button" type="button" title="Anexar arquivo" aria-label="Anexar arquivo" data-attach-button>+</button>
+        <button class="attach-button" type="button" title="Anexar arquivo" aria-label="Anexar arquivo" data-attach-button {{ 'disabled' if conversation.whatsapp_window.is_applicable and not conversation.whatsapp_window.is_open else '' }}>+</button>
         <input id="attachment_input" name="attachment" type="file" hidden>
         <button class="emoji-button" type="button" title="Emoji" aria-label="Emoji" data-emoji-button></button>
-        <textarea id="message_text" name="text" placeholder="Digite uma mensagem ou use / para mensagem rapida" data-shortcuts='{{ shortcuts|tojson }}' data-mentions='{{ mention_users|tojson }}'></textarea>
+        <textarea id="message_text" name="text" placeholder="Digite uma mensagem ou use / para mensagem rapida" data-shortcuts='{{ shortcuts|tojson }}' data-mentions='{{ mention_users|tojson }}' {{ 'disabled' if conversation.whatsapp_window.is_applicable and not conversation.whatsapp_window.is_open else '' }}></textarea>
         <input type="hidden" name="is_internal" value="">
         <div class="composer-tools">
-          <button class="mic-button" type="button" title="Gravar audio" aria-label="Gravar audio" data-audio-button></button>
+          <button class="mic-button" type="button" title="Gravar audio" aria-label="Gravar audio" data-audio-button {{ 'disabled' if conversation.whatsapp_window.is_applicable and not conversation.whatsapp_window.is_open else '' }}></button>
           <button class="send-icon" type="submit" title="Enviar">&gt;</button>
         </div>
         <div class="quick-reply-menu" data-quick-reply-menu></div>
@@ -302,6 +335,17 @@
         <label><input type="checkbox" name="expired" value="1" {{ 'checked' if filters.expired else '' }}> Vencidas</label>
         <label><input type="checkbox" name="favorites" value="1" {{ 'checked' if filters.favorites else '' }}> Somente favoritos</label>
       </div>
+      <div class="form-row">
+        <label>Janela WhatsApp</label>
+        <select name="whatsapp_window">
+          <option value="">Todas</option>
+          <option value="open" {{ 'selected' if filters.whatsapp_window == 'open' else '' }}>Janela WhatsApp aberta</option>
+          <option value="warning" {{ 'selected' if filters.whatsapp_window == 'warning' else '' }}>Fechando em breve</option>
+          <option value="urgent" {{ 'selected' if filters.whatsapp_window == 'urgent' else '' }}>Urgente</option>
+          <option value="expired" {{ 'selected' if filters.whatsapp_window == 'expired' else '' }}>Janela fechada</option>
+          <option value="waiting" {{ 'selected' if filters.whatsapp_window == 'waiting' else '' }}>Aguardando primeira mensagem</option>
+        </select>
+      </div>
       <table class="filter-table">
         <thead><tr><th>Visualizar</th><th>Status</th><th>Instancia</th></tr></thead>
         <tbody>
@@ -344,6 +388,15 @@
           {% endfor %}
         </select>
       </div>
+      <div class="form-row">
+        <label>Responsavel inicial</label>
+        <select name="agent_id">
+          {% if current_user.role == "admin" %}<option value="">Nao atribuido</option>{% endif %}
+          {% for agent in agents %}
+          <option value="{{ agent.id }}" {{ 'selected' if current_user.role != 'admin' and agent.id == current_user.id else '' }}>{{ agent.name }}</option>
+          {% endfor %}
+        </select>
+      </div>
       <div class="form-row"><label>Primeira mensagem recebida</label><textarea name="initial_message" placeholder="Mensagem inicial do cliente"></textarea></div>
       <button class="button" type="submit">Criar conversa</button>
     </form>
@@ -377,12 +430,65 @@
       <h2 id="templates-title">Modelos de mensagem</h2>
       <button class="icon-button ghost" type="button" aria-label="Fechar" data-close-modal>x</button>
     </div>
-    <div class="quick-pills template-list">
-      {% for reply in quick_replies %}
-      <button type="button" onclick='applyQuickReply({{ reply.rendered|tojson }}); document.querySelector("#templates-modal").classList.remove("is-open")'>{{ reply.shortcut }}</button>
+    <h3>Modelos WhatsApp aprovados</h3>
+    <input class="template-search" type="search" placeholder="Buscar modelo WhatsApp" data-template-search>
+    <div class="whatsapp-template-list" data-template-list>
+      {% for item in whatsapp_templates %}
+      <form class="whatsapp-template-option" method="post" action="/agent/conversations/{{ conversation.id }}/templates" data-template-item data-template-name="{{ item.name|lower }}">
+        <input type="hidden" name="csrf_token" value="{{ request.state.csrf_token }}">
+        <input type="hidden" name="template_id" value="{{ item.id }}">
+        <strong>{{ item.name }}</strong>
+        <small>{{ item.category }} Â· {{ item.language }}</small>
+        <p>{{ item.preview }}</p>
+        <button class="button small" type="submit">Enviar modelo WhatsApp</button>
+      </form>
+      {% else %}
+      <p class="helper-text">Nenhum modelo aprovado esta disponivel. Solicite a um administrador o cadastro de um modelo.</p>
       {% endfor %}
     </div>
+    <h3>Globais</h3>
+    <div class="quick-pills template-list">
+      {% for reply in global_quick_replies %}
+      <button type="button" {{ 'disabled' if conversation.whatsapp_window.is_applicable and not conversation.whatsapp_window.is_open else '' }} onclick='applyQuickReply({{ reply.rendered|tojson }}); document.querySelector("#templates-modal").classList.remove("is-open")'>{{ reply.shortcut }}</button>
+      {% else %}
+      <span class="helper-text">Nenhuma resposta global cadastrada.</span>
+      {% endfor %}
+    </div>
+    <h3>Minhas respostas</h3>
+    <div class="quick-pills template-list">
+      {% for reply in personal_quick_replies %}
+      <button type="button" {{ 'disabled' if conversation.whatsapp_window.is_applicable and not conversation.whatsapp_window.is_open else '' }} onclick='applyQuickReply({{ reply.rendered|tojson }}); document.querySelector("#templates-modal").classList.remove("is-open")'>{{ reply.shortcut }}</button>
+      {% else %}
+      <span class="helper-text">Nenhuma resposta pessoal cadastrada.</span>
+      {% endfor %}
+    </div>
+    <form class="form-grid" method="post" action="/agent/quick-replies">
+      <input type="hidden" name="csrf_token" value="{{ request.state.csrf_token }}">
+      <input type="hidden" name="conversation_id" value="{{ conversation.id }}">
+      <div class="two-col">
+        <div class="form-row"><label>Titulo</label><input name="title" required></div>
+        <div class="form-row"><label>Atalho</label><input name="shortcut" placeholder="/minha" required></div>
+      </div>
+      <div class="form-row"><label>Conteudo pessoal</label><textarea name="content" required></textarea></div>
+      <button class="button small" type="submit">Salvar resposta pessoal</button>
+    </form>
+    {% for reply in personal_quick_replies %}
+    <form class="form-grid" method="post" action="/agent/quick-replies/{{ reply.id }}/edit">
+      <input type="hidden" name="csrf_token" value="{{ request.state.csrf_token }}">
+      <input type="hidden" name="conversation_id" value="{{ conversation.id }}">
+      <div class="two-col">
+        <div class="form-row"><label>Titulo</label><input name="title" value="{{ reply.title }}" required></div>
+        <div class="form-row"><label>Atalho</label><input name="shortcut" value="{{ reply.shortcut }}" required></div>
+      </div>
+      <div class="form-row"><label>Conteudo</label><textarea name="content" required>{{ reply.content }}</textarea></div>
+      <div class="modal-actions">
+        <button class="button small secondary" type="submit">Atualizar</button>
+        <button class="button small danger" type="submit" formaction="/agent/quick-replies/{{ reply.id }}/delete">Excluir</button>
+      </div>
+    </form>
+    {% endfor %}
   </section>
 </div>
 {% endif %}
 {% endblock %}
+

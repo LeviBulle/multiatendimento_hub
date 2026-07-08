@@ -45,7 +45,7 @@ def validate_and_store_upload(upload: UploadFile, max_size_mb: int, upload_dir: 
             if size > max_bytes:
                 output.close()
                 stored_path.unlink(missing_ok=True)
-                raise ValueError(f"Arquivo maior que o limite de {max_size_mb} MB.")
+                raise ValueError(f"Arquivo maior que o limite permitido de {max_size_mb} MB.")
             output.write(chunk)
 
     return StoredUpload(

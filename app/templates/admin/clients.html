@@ -4,6 +4,7 @@
 <section class="panel">
   <h2>{{ "Editar cliente" if edit_client else "Cadastrar cliente" }}</h2>
   <form class="form-grid" method="post" action="{{ '/admin/clients/' ~ edit_client.id ~ '/edit' if edit_client else '/admin/clients' }}">
+    <input type="hidden" name="csrf_token" value="{{ request.state.csrf_token }}">
     <div class="two-col">
       <div class="form-row"><label>Nome completo</label><input name="full_name" value="{{ edit_client.full_name if edit_client else '' }}" required data-name-upper></div>
       <div class="form-row"><label>Nome preferencial</label><input name="preferred_name" value="{{ edit_client.preferred_name if edit_client else '' }}" data-name-title></div>

@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>{{ title or "Ellub Chat" }}</title>
-  <link rel="stylesheet" href="{{ url_for('static', path='/css/app.css') }}?v=ellub-chat-47">
+  <link rel="stylesheet" href="{{ url_for('static', path='/css/app.css') }}?v=ellub-chat-51">
   <meta name="csrf-token" content="{{ request.state.csrf_token }}">
 </head>
 <body>
@@ -31,6 +31,7 @@
           <a class="{{ 'active' if path.startswith('/admin/clients') else '' }}" href="/admin/clients"><span class="nav-icon">C</span><span class="nav-label">Clientes</span></a>
         </div>
         <a class="{{ 'active' if path.startswith('/admin/quick-replies') else '' }}" href="/admin/quick-replies"><span class="nav-icon">R</span><span class="nav-label">Respostas rapidas</span></a>
+        <a class="{{ 'active' if path.startswith('/admin/whatsapp-templates') else '' }}" href="/admin/whatsapp-templates"><span class="nav-icon">W</span><span class="nav-label">Modelos WhatsApp</span></a>
       </nav>
       <div class="side-bottom-actions">
           <button class="plain-icon" type="button" title="Ajuda" data-open-modal="help-modal">?</button>
@@ -99,7 +100,7 @@
 
     <section class="app-stage">
       <main class="app-main">
-        <div class="demo-banner app-demo-banner">Ambiente demonstrativo - canais e integracoes simulados.</div>
+        {% if demo_mode %}<div class="demo-banner app-demo-banner">Ambiente demonstrativo - canais e integracoes simulados.</div>{% endif %}
   {% endif %}
 
   {% block body %}{% endblock %}
@@ -191,6 +192,7 @@
 
     document.documentElement.dataset.theme = localStorage.getItem("ellubTheme") || "light";
   </script>
-  <script src="{{ url_for('static', path='/js/app.js') }}?v=ellub-chat-47"></script>
+  <script src="{{ url_for('static', path='/js/app.js') }}?v=ellub-chat-51"></script>
+  <script src="{{ url_for('static', path='/js/whatsapp_window_timer.js') }}?v=ellub-chat-5"></script>
 </body>
 </html>

@@ -22,7 +22,7 @@ def upgrade() -> None:
         sa.Column("mentioned_user_id", sa.Integer(), sa.ForeignKey("users.id"), nullable=False),
         sa.Column("mentioned_by_user_id", sa.Integer(), sa.ForeignKey("users.id"), nullable=False),
         sa.Column("is_read", sa.Boolean(), nullable=False, server_default=sa.false()),
-        sa.Column("created_at", sa.DateTime(), nullable=False, server_default=sa.func.now()),
+        sa.Column("created_at", sa.DateTime(timezone=True), nullable=False, server_default=sa.func.now()),
     )
     op.create_index("ix_mention_notifications_workspace_id", "mention_notifications", ["workspace_id"])
     op.create_index("ix_mention_notifications_conversation_id", "mention_notifications", ["conversation_id"])

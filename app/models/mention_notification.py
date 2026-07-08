@@ -3,6 +3,7 @@ from datetime import datetime
 from sqlalchemy import Boolean, DateTime, ForeignKey
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
+from app.core.time import utc_now
 from app.db.base import Base
 
 
@@ -16,7 +17,7 @@ class MentionNotification(Base):
     mentioned_user_id: Mapped[int] = mapped_column(ForeignKey("users.id"), index=True)
     mentioned_by_user_id: Mapped[int] = mapped_column(ForeignKey("users.id"), index=True)
     is_read: Mapped[bool] = mapped_column(Boolean, default=False, index=True)
-    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now)
 
     conversation = relationship("Conversation")
     message = relationship("Message")

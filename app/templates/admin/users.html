@@ -4,6 +4,7 @@
 <section class="panel">
   <h2>{{ "Editar atendente" if edit_user else "Criar atendente" }}</h2>
   <form class="form-grid" method="post" action="{{ '/admin/users/' ~ edit_user.id ~ '/edit' if edit_user else '/admin/users' }}">
+    <input type="hidden" name="csrf_token" value="{{ request.state.csrf_token }}">
     <div class="two-col">
       <div class="form-row"><label>Nome</label><input name="name" value="{{ edit_user.name if edit_user else '' }}" required></div>
       <div class="form-row"><label>E-mail</label><input type="email" name="email" value="{{ edit_user.email if edit_user else '' }}" required></div>
@@ -28,6 +29,7 @@
         <td>
           <a class="button small secondary" href="/admin/users?edit={{ user.id }}">Editar</a>
           <form method="post" action="/admin/users/{{ user.id }}/toggle" style="display:inline">
+            <input type="hidden" name="csrf_token" value="{{ request.state.csrf_token }}">
             <button class="button small {{ 'danger' if user.is_active else '' }}" type="submit">{{ "Desativar" if user.is_active else "Ativar" }}</button>
           </form>
         </td>

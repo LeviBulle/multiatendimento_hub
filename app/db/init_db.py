@@ -1,30 +1,33 @@
-from datetime import datetime, timedelta
+from datetime import timedelta
 
 from sqlalchemy.orm import Session
 
 from app.core.config import get_settings
 from app.core.security import get_password_hash
+from app.core.time import utc_now
 from app.models.channel import Channel
 from app.models.client import Client
 from app.models.conversation import Conversation
 from app.models.message import Message
 from app.models.quick_reply import QuickReply
 from app.models.user import User
+from app.models.whatsapp_template import WhatsAppTemplate
 from app.models.workspace import Workspace
 from app.services.clients import extract_first_name
+from app.services.demo_auto_reply import PAPAGAIO_CLIENT_NAME
 
 
 def init_db(db: Session) -> None:
     settings = get_settings()
+    if not settings.demo_mode:
+        db.commit()
+        return
+
     workspace = db.query(Workspace).filter(Workspace.slug == "ellub-demo").first()
     if not workspace:
         workspace = Workspace(name="Ellub Demo", slug="ellub-demo", is_active=True)
         db.add(workspace)
         db.flush()
-
-    if not settings.demo_mode:
-        db.commit()
-        return
 
     admin = db.query(User).filter(User.email == "admin@hub.local", User.workspace_id == workspace.id).first()
     if not admin:
@@ -95,6 +98,20 @@ def init_db(db: Session) -> None:
         )
     db.flush()
 
+    if not db.query(WhatsAppTemplate).filter(WhatsAppTemplate.workspace_id == workspace.id, WhatsAppTemplate.name == "reabertura_atendimento").first():
+        db.add(
+            WhatsAppTemplate(
+                workspace_id=workspace.id,
+                name="reabertura_atendimento",
+                slug="reabertura_atendimento",
+                language="pt_BR",
+                category="utility",
+                content="Ola, {{cliente_nome}}. Estamos retomando seu atendimento. Como podemos ajudar?",
+                status="approved",
+            )
+        )
+    db.flush()
+
     if not db.query(Client).filter(Client.workspace_id == workspace.id).first():
         client = Client(
             workspace_id=workspace.id,
@@ -116,20 +133,58 @@ def init_db(db: Session) -> None:
             agent_id=ana.id,
             status="aberta",
             unread=True,
-            created_at=datetime.utcnow() - timedelta(minutes=35),
-            last_message_at=datetime.utcnow() - timedelta(minutes=8),
+            created_at=utc_now() - timedelta(minutes=35),
+            last_message_at=utc_now() - timedelta(minutes=8),
+            last_customer_message_at=utc_now() - timedelta(minutes=8),
         )
         db.add(conversation)
         db.flush()
         db.add_all(
             [
-                Message(conversation_id=conversation.id, sender="cliente", text="Oi, queria saber mais sobre o atendimento.", status="recebida", created_at=datetime.utcnow() - timedelta(minutes=35)),
-                Message(conversation_id=conversation.id, author_user_id=ana.id, sender="atendente", text="Bom dia, Isadora! Claro, vou te explicar.", status="enviada", created_at=datetime.utcnow() - timedelta(minutes=30)),
-                Message(conversation_id=conversation.id, sender="cliente", text="Perfeito, obrigada.", status="recebida", created_at=datetime.utcnow() - timedelta(minutes=8)),
-                Message(conversation_id=conversation.id, sender="sistema", text="Lead marcado como oportunidade.", status="lida", is_internal=True, created_at=datetime.utcnow() - timedelta(minutes=7)),
+                Message(conversation_id=conversation.id, sender="cliente", text="Oi, queria saber mais sobre o atendimento.", status="recebida", created_at=utc_now() - timedelta(minutes=35)),
+                Message(conversation_id=conversation.id, author_user_id=ana.id, sender="atendente", text="Bom dia, Isadora! Claro, vou te explicar.", status="enviada", created_at=utc_now() - timedelta(minutes=30)),
+                Message(conversation_id=conversation.id, sender="cliente", text="Perfeito, obrigada.", status="recebida", created_at=utc_now() - timedelta(minutes=8)),
+                Message(conversation_id=conversation.id, sender="sistema", text="Lead marcado como oportunidade.", status="lida", is_internal=True, created_at=utc_now() - timedelta(minutes=7)),
             ]
         )
-        conversation.first_response_at = datetime.utcnow() - timedelta(minutes=30)
+        conversation.first_response_at = utc_now() - timedelta(minutes=30)
         conversation.first_response_minutes = 5
+
+    whatsapp = db.query(Channel).filter(Channel.workspace_id == workspace.id, Channel.type == "WhatsApp").first()
+    ana = db.query(User).filter(User.email == "ana@hub.local", User.workspace_id == workspace.id).first()
+    papagaio = db.query(Client).filter(Client.workspace_id == workspace.id, Client.full_name == PAPAGAIO_CLIENT_NAME).first()
+    if not papagaio:
+        papagaio = Client(
+            workspace_id=workspace.id,
+            full_name=PAPAGAIO_CLIENT_NAME,
+            first_name=extract_first_name(PAPAGAIO_CLIENT_NAME),
+            phone="+55 11 91000-2222",
+            notes="Cliente demo com resposta automatica para testes.",
+        )
+        db.add(papagaio)
+        db.flush()
+    if whatsapp and ana and not db.query(Conversation).filter(Conversation.workspace_id == workspace.id, Conversation.client_id == papagaio.id).first():
+        papagaio_conversation = Conversation(
+            workspace_id=workspace.id,
+            client_id=papagaio.id,
+            channel_id=whatsapp.id,
+            agent_id=ana.id,
+            status="aberta",
+            unread=True,
+            created_at=utc_now(),
+            last_message_at=utc_now(),
+            last_customer_message_at=utc_now(),
+        )
+        db.add(papagaio_conversation)
+        db.flush()
+        db.add(
+            Message(
+                conversation_id=papagaio_conversation.id,
+                sender="cliente",
+                text="loro quer biscoito",
+                status="recebida",
+                created_at=utc_now(),
+            )
+        )
 
     db.commit()

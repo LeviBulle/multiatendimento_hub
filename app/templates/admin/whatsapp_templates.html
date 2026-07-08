@@ -1,0 +1,66 @@
+{% extends "admin/base.html" %}
+{% block admin_content %}
+<div class="page-title"><h1>Modelos WhatsApp</h1></div>
+{% if error %}<div class="alert">{{ error }}</div>{% endif %}
+<section class="panel">
+  <h2>{{ "Editar modelo" if edit_template else "Cadastrar modelo" }}</h2>
+  <p class="helper-text">Status simulado - integracao com Meta ainda nao configurada.</p>
+  <form class="form-grid" method="post" action="{{ '/admin/whatsapp-templates/' ~ edit_template.id ~ '/edit' if edit_template else '/admin/whatsapp-templates' }}">
+    <input type="hidden" name="csrf_token" value="{{ request.state.csrf_token }}">
+    <div class="two-col">
+      <div class="form-row"><label>Nome unico</label><input name="name" value="{{ edit_template.name if edit_template else '' }}" placeholder="reabertura_atendimento" required></div>
+      <div class="form-row"><label>Idioma</label><input name="language" value="{{ edit_template.language if edit_template else 'pt_BR' }}" required></div>
+    </div>
+    <div class="two-col">
+      <div class="form-row">
+        <label>Categoria</label>
+        <select name="category">
+          {% for option in ["utility", "marketing", "authentication"] %}
+          <option value="{{ option }}" {{ 'selected' if edit_template and edit_template.category == option else '' }}>{{ option }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="form-row">
+        <label>Status</label>
+        <select name="status">
+          {% for option in ["draft", "approved", "rejected", "paused"] %}
+          <option value="{{ option }}" {{ 'selected' if edit_template and edit_template.status == option else '' }}>{{ option }}</option>
+          {% endfor %}
+        </select>
+      </div>
+    </div>
+    <div class="form-row"><label>ID externo futuro</label><input name="external_template_id" value="{{ edit_template.external_template_id if edit_template and edit_template.external_template_id else '' }}"></div>
+    <div class="form-row"><label>Conteudo</label><textarea name="content" required>{{ edit_template.content if edit_template else 'Ola, {{cliente_nome}}. Estamos retomando seu atendimento. Como podemos ajudar?' }}</textarea></div>
+    <p class="helper-text">Variaveis permitidas: <code>{{ "{{cliente_nome}" }}</code>, <code>{{ "{{cliente_telefone}" }}</code>, <code>{{ "{{atendente_nome}" }}</code>.</p>
+    <button class="button" type="submit">{{ "Salvar modelo" if edit_template else "Criar modelo" }}</button>
+  </form>
+</section>
+
+<section class="panel">
+  <h2>Modelos do workspace</h2>
+  <div class="table-wrap">
+    <table>
+      <thead><tr><th>Nome</th><th>Status</th><th>Categoria</th><th>Conteudo</th><th>Acoes</th></tr></thead>
+      <tbody>
+      {% for item in templates %}
+        <tr>
+          <td>{{ item.name }}<br><small>{{ item.language }}</small></td>
+          <td><span class="badge {{ 'ok' if item.status == 'approved' else 'warn' }}">{{ item.status }}</span></td>
+          <td>{{ item.category }}</td>
+          <td>{{ item.content }}</td>
+          <td>
+            <a class="button small secondary" href="/admin/whatsapp-templates?edit={{ item.id }}">Editar</a>
+            <form method="post" action="/admin/whatsapp-templates/{{ item.id }}/pause" style="display:inline">
+              <input type="hidden" name="csrf_token" value="{{ request.state.csrf_token }}">
+              <button class="button small {{ 'danger' if item.status == 'approved' else 'secondary' }}" type="submit">{{ "Pausar" if item.status == "approved" else "Aprovar demo" }}</button>
+            </form>
+          </td>
+        </tr>
+      {% else %}
+        <tr><td colspan="5">Nenhum modelo cadastrado.</td></tr>
+      {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</section>
+{% endblock %}

@@ -2,22 +2,34 @@
 {% block admin_content %}
 <div class="page-title"><h1>Instancias simuladas</h1></div>
 <section class="panel">
-  <h2>Cadastrar instancia</h2>
-  <form class="form-grid" method="post" action="/admin/channels">
+  <h2>{{ "Editar instancia" if edit_channel else "Cadastrar instancia" }}</h2>
+  <form class="form-grid" method="post" action="{{ '/admin/channels/' ~ edit_channel.id ~ '/edit' if edit_channel else '/admin/channels' }}">
+    <input type="hidden" name="csrf_token" value="{{ request.state.csrf_token }}">
     <div class="two-col">
-      <div class="form-row"><label>Nome</label><input name="name" placeholder="WhatsApp Principal" required></div>
-      <div class="form-row"><label>Tipo</label><select name="type"><option>WhatsApp</option><option>Instagram</option><option>Facebook</option></select></div>
+      <div class="form-row"><label>Nome</label><input name="name" value="{{ edit_channel.name if edit_channel else '' }}" placeholder="WhatsApp Principal" required></div>
+      <div class="form-row"><label>Tipo</label><select name="type"><option {{ 'selected' if edit_channel and edit_channel.type == 'WhatsApp' else '' }}>WhatsApp</option><option {{ 'selected' if edit_channel and edit_channel.type == 'Instagram' else '' }}>Instagram</option><option {{ 'selected' if edit_channel and edit_channel.type == 'Facebook' else '' }}>Facebook</option></select></div>
     </div>
-    <button class="button" type="submit">Criar instancia</button>
+    <button class="button" type="submit">{{ "Salvar instancia" if edit_channel else "Criar instancia" }}</button>
   </form>
 </section>
 <section class="panel">
   <h2>Lista</h2>
   <table>
-    <thead><tr><th>Nome</th><th>Tipo</th><th>Status</th></tr></thead>
+    <thead><tr><th>Nome</th><th>Tipo</th><th>Status</th><th>Acoes</th></tr></thead>
     <tbody>
     {% for channel in channels %}
-      <tr><td>{{ channel.name }}</td><td>{{ channel.type }}</td><td><span class="badge ok">Simulado</span></td></tr>
+      <tr>
+        <td>{{ channel.name }}</td>
+        <td>{{ channel.type }}</td>
+        <td><span class="badge {{ 'ok' if channel.is_active else 'warn' }}">{{ "Ativo" if channel.is_active else "Inativo" }}</span></td>
+        <td>
+          <a class="button small secondary" href="/admin/channels?edit={{ channel.id }}">Editar</a>
+          <form method="post" action="/admin/channels/{{ channel.id }}/toggle" style="display:inline">
+            <input type="hidden" name="csrf_token" value="{{ request.state.csrf_token }}">
+            <button class="button small {{ 'danger' if channel.is_active else '' }}" type="submit">{{ "Desativar" if channel.is_active else "Ativar" }}</button>
+          </form>
+        </td>
+      </tr>
     {% endfor %}
     </tbody>
   </table>

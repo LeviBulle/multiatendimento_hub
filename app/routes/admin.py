@@ -4,6 +4,7 @@ from fastapi.responses import RedirectResponse
 from fastapi.templating import Jinja2Templates
 from sqlalchemy.orm import Session
 
+from app.core.config import get_settings
 from app.core.deps import require_admin
 from app.core.security import get_password_hash
 from app.db.session import get_db
@@ -11,10 +12,12 @@ from app.models.channel import Channel
 from app.models.client import Client
 from app.models.quick_reply import QuickReply
 from app.models.user import User
+from app.models.whatsapp_template import WhatsAppTemplate
 from app.services.clients import upsert_client_fields
 from app.services.mentions import notification_context
 from app.services.metrics import get_admin_metrics
 from app.services.quick_replies import TEMPLATE_VARIABLES, normalize_shortcut
+from app.services.whatsapp_templates import slugify_template_name, validate_template_variables
 
 router = APIRouter(prefix="/admin")
 templates = Jinja2Templates(directory="app/templates")
@@ -28,7 +31,7 @@ def clean_email(value: str) -> str:
 
 
 def base_context(db: Session, current_user: User, **values) -> dict:
-    context = {"current_user": current_user, **values}
+    context = {"current_user": current_user, "demo_mode": get_settings().demo_mode, **values}
     context.update(notification_context(db, current_user))
     return context
 
@@ -141,15 +144,35 @@ def toggle_user(user_id: int, db: Session = Depends(get_db), current_user: User 
 
 
 @router.get("/channels")
-def channels_page(request: Request, db: Session = Depends(get_db), current_user: User = Depends(require_admin)):
+def channels_page(request: Request, edit: int | None = None, db: Session = Depends(get_db), current_user: User = Depends(require_admin)):
     channels = db.query(Channel).filter(Channel.workspace_id == current_user.workspace_id).order_by(Channel.type, Channel.name).all()
-    return templates.TemplateResponse(request, "admin/channels.html", base_context(db, current_user, active="channels", channels=channels, error=""))
+    edit_channel = db.query(Channel).filter(Channel.id == edit, Channel.workspace_id == current_user.workspace_id).first() if edit else None
+    return templates.TemplateResponse(request, "admin/channels.html", base_context(db, current_user, active="channels", channels=channels, edit_channel=edit_channel, error=""))
 
 
 @router.post("/channels")
 def create_channel(name: str = Form(...), type: str = Form(...), db: Session = Depends(get_db), current_user: User = Depends(require_admin)):
     if name.strip() and type.strip():
         db.add(Channel(workspace_id=current_user.workspace_id, name=name.strip(), type=type.strip(), is_active=True))
+        db.commit()
+    return RedirectResponse("/admin/channels", status_code=303)
+
+
+@router.post("/channels/{channel_id}/edit")
+def edit_channel(channel_id: int, name: str = Form(...), type: str = Form(...), db: Session = Depends(get_db), current_user: User = Depends(require_admin)):
+    channel = db.query(Channel).filter(Channel.id == channel_id, Channel.workspace_id == current_user.workspace_id).first()
+    if channel and name.strip() and type.strip():
+        channel.name = name.strip()
+        channel.type = type.strip()
+        db.commit()
+    return RedirectResponse("/admin/channels", status_code=303)
+
+
+@router.post("/channels/{channel_id}/toggle")
+def toggle_channel(channel_id: int, db: Session = Depends(get_db), current_user: User = Depends(require_admin)):
+    channel = db.query(Channel).filter(Channel.id == channel_id, Channel.workspace_id == current_user.workspace_id).first()
+    if channel:
+        channel.is_active = not channel.is_active
         db.commit()
     return RedirectResponse("/admin/channels", status_code=303)
 
@@ -233,17 +256,24 @@ def edit_client(
 
 
 @router.get("/quick-replies")
-def quick_replies_page(request: Request, db: Session = Depends(get_db), current_user: User = Depends(require_admin)):
+def quick_replies_page(request: Request, edit: int | None = None, db: Session = Depends(get_db), current_user: User = Depends(require_admin)):
     replies = (
         db.query(QuickReply)
         .filter(QuickReply.workspace_id == current_user.workspace_id, QuickReply.type == "global")
         .order_by(QuickReply.shortcut)
         .all()
     )
+    edit_reply = (
+        db.query(QuickReply)
+        .filter(QuickReply.id == edit, QuickReply.workspace_id == current_user.workspace_id, QuickReply.type == "global")
+        .first()
+        if edit
+        else None
+    )
     return templates.TemplateResponse(
         request,
         "admin/quick_replies.html",
-        base_context(db, current_user, active="quick", replies=replies, template_variables=TEMPLATE_VARIABLES, error=""),
+        base_context(db, current_user, active="quick", replies=replies, edit_reply=edit_reply, template_variables=TEMPLATE_VARIABLES, error=""),
     )
 
 
@@ -253,3 +283,118 @@ def create_quick_reply(title: str = Form(...), shortcut: str = Form(...), conten
         db.add(QuickReply(workspace_id=current_user.workspace_id, title=title.strip(), shortcut=normalize_shortcut(shortcut), content=content.strip(), type="global"))
         db.commit()
     return RedirectResponse("/admin/quick-replies", status_code=303)
+
+
+@router.post("/quick-replies/{reply_id}/edit")
+def edit_quick_reply(reply_id: int, title: str = Form(...), shortcut: str = Form(...), content: str = Form(...), db: Session = Depends(get_db), current_user: User = Depends(require_admin)):
+    reply = db.query(QuickReply).filter(QuickReply.id == reply_id, QuickReply.workspace_id == current_user.workspace_id, QuickReply.type == "global").first()
+    if reply and title.strip() and content.strip():
+        reply.title = title.strip()
+        reply.shortcut = normalize_shortcut(shortcut)
+        reply.content = content.strip()
+        db.commit()
+    return RedirectResponse("/admin/quick-replies", status_code=303)
+
+
+@router.post("/quick-replies/{reply_id}/delete")
+def delete_quick_reply(reply_id: int, db: Session = Depends(get_db), current_user: User = Depends(require_admin)):
+    reply = db.query(QuickReply).filter(QuickReply.id == reply_id, QuickReply.workspace_id == current_user.workspace_id, QuickReply.type == "global").first()
+    if reply:
+        db.delete(reply)
+        db.commit()
+    return RedirectResponse("/admin/quick-replies", status_code=303)
+
+
+@router.get("/whatsapp-templates")
+def whatsapp_templates_page(request: Request, edit: int | None = None, db: Session = Depends(get_db), current_user: User = Depends(require_admin)):
+    items = (
+        db.query(WhatsAppTemplate)
+        .filter(WhatsAppTemplate.workspace_id == current_user.workspace_id)
+        .order_by(WhatsAppTemplate.name)
+        .all()
+    )
+    edit_template = (
+        db.query(WhatsAppTemplate)
+        .filter(WhatsAppTemplate.id == edit, WhatsAppTemplate.workspace_id == current_user.workspace_id)
+        .first()
+        if edit
+        else None
+    )
+    return templates.TemplateResponse(
+        request,
+        "admin/whatsapp_templates.html",
+        base_context(db, current_user, active="whatsapp_templates", templates=items, edit_template=edit_template, error=request.query_params.get("error", "")),
+    )
+
+
+@router.post("/whatsapp-templates")
+def create_whatsapp_template(
+    name: str = Form(...),
+    language: str = Form("pt_BR"),
+    category: str = Form("utility"),
+    content: str = Form(...),
+    status: str = Form("draft"),
+    external_template_id: str = Form(""),
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_admin),
+):
+    try:
+        validate_template_variables(content)
+    except ValueError as exc:
+        return RedirectResponse(f"/admin/whatsapp-templates?error={str(exc).replace(' ', '+')}", status_code=303)
+    if name.strip() and content.strip():
+        existing = db.query(WhatsAppTemplate).filter(WhatsAppTemplate.workspace_id == current_user.workspace_id, WhatsAppTemplate.name == name.strip()).first()
+        if existing:
+            return RedirectResponse("/admin/whatsapp-templates?error=Ja+existe+um+modelo+com+este+nome.", status_code=303)
+        db.add(
+            WhatsAppTemplate(
+                workspace_id=current_user.workspace_id,
+                name=name.strip(),
+                slug=slugify_template_name(name),
+                language=language.strip() or "pt_BR",
+                category=category,
+                content=content.strip(),
+                status=status,
+                external_template_id=external_template_id.strip() or None,
+            )
+        )
+        db.commit()
+    return RedirectResponse("/admin/whatsapp-templates", status_code=303)
+
+
+@router.post("/whatsapp-templates/{template_id}/edit")
+def edit_whatsapp_template(
+    template_id: int,
+    name: str = Form(...),
+    language: str = Form("pt_BR"),
+    category: str = Form("utility"),
+    content: str = Form(...),
+    status: str = Form("draft"),
+    external_template_id: str = Form(""),
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_admin),
+):
+    item = db.query(WhatsAppTemplate).filter(WhatsAppTemplate.id == template_id, WhatsAppTemplate.workspace_id == current_user.workspace_id).first()
+    if item:
+        try:
+            validate_template_variables(content)
+        except ValueError as exc:
+            return RedirectResponse(f"/admin/whatsapp-templates?edit={template_id}&error={str(exc).replace(' ', '+')}", status_code=303)
+        item.name = name.strip()
+        item.slug = slugify_template_name(name)
+        item.language = language.strip() or "pt_BR"
+        item.category = category
+        item.content = content.strip()
+        item.status = status
+        item.external_template_id = external_template_id.strip() or None
+        db.commit()
+    return RedirectResponse("/admin/whatsapp-templates", status_code=303)
+
+
+@router.post("/whatsapp-templates/{template_id}/pause")
+def pause_whatsapp_template(template_id: int, db: Session = Depends(get_db), current_user: User = Depends(require_admin)):
+    item = db.query(WhatsAppTemplate).filter(WhatsAppTemplate.id == template_id, WhatsAppTemplate.workspace_id == current_user.workspace_id).first()
+    if item:
+        item.status = "paused" if item.status == "approved" else "approved"
+        db.commit()
+    return RedirectResponse("/admin/whatsapp-templates", status_code=303)

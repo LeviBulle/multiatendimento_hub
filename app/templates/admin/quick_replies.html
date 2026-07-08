@@ -3,17 +3,18 @@
 <div class="page-title"><h1>Mensagens rapidas globais</h1></div>
 
 <section class="panel">
-  <h2>Criar modelo</h2>
-  <form class="form-grid" method="post" action="/admin/quick-replies">
+  <h2>{{ "Editar modelo" if edit_reply else "Criar modelo" }}</h2>
+  <form class="form-grid" method="post" action="{{ '/admin/quick-replies/' ~ edit_reply.id ~ '/edit' if edit_reply else '/admin/quick-replies' }}">
+    <input type="hidden" name="csrf_token" value="{{ request.state.csrf_token }}">
     <div class="two-col">
-      <div class="form-row"><label>Titulo</label><input name="title" required></div>
-      <div class="form-row"><label>Atalho</label><input name="shortcut" placeholder="/bomdia" required></div>
+      <div class="form-row"><label>Titulo</label><input name="title" value="{{ edit_reply.title if edit_reply else '' }}" required></div>
+      <div class="form-row"><label>Atalho</label><input name="shortcut" value="{{ edit_reply.shortcut if edit_reply else '' }}" placeholder="/bomdia" required></div>
     </div>
     <div class="form-row">
       <label>Conteudo</label>
-      <textarea name="content" placeholder="Ola, [nome_preferencial]! Me chamo [atendente] e sera um prazer te atender hoje." required></textarea>
+      <textarea name="content" placeholder="Ola, [nome_preferencial]! Me chamo [atendente] e sera um prazer te atender hoje." required>{{ edit_reply.content if edit_reply else '' }}</textarea>
     </div>
-    <button class="button" type="submit">Criar mensagem</button>
+    <button class="button" type="submit">{{ "Salvar mensagem" if edit_reply else "Criar mensagem" }}</button>
   </form>
 </section>
 
@@ -38,10 +39,21 @@
 <section class="panel">
   <h2>Lista</h2>
   <table>
-    <thead><tr><th>Titulo</th><th>Atalho</th><th>Conteudo</th></tr></thead>
+    <thead><tr><th>Titulo</th><th>Atalho</th><th>Conteudo</th><th>Acoes</th></tr></thead>
     <tbody>
     {% for reply in replies %}
-      <tr><td>{{ reply.title }}</td><td>{{ reply.shortcut }}</td><td>{{ reply.content }}</td></tr>
+      <tr>
+        <td>{{ reply.title }}</td>
+        <td>{{ reply.shortcut }}</td>
+        <td>{{ reply.content }}</td>
+        <td>
+          <a class="button small secondary" href="/admin/quick-replies?edit={{ reply.id }}">Editar</a>
+          <form method="post" action="/admin/quick-replies/{{ reply.id }}/delete" style="display:inline">
+            <input type="hidden" name="csrf_token" value="{{ request.state.csrf_token }}">
+            <button class="button small danger" type="submit">Excluir</button>
+          </form>
+        </td>
+      </tr>
     {% endfor %}
     </tbody>
   </table>

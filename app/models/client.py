@@ -3,6 +3,7 @@ from datetime import datetime
 from sqlalchemy import DateTime, ForeignKey, String, Text
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
+from app.core.time import utc_now
 from app.db.base import Base
 
 
@@ -32,7 +33,7 @@ class Client(Base):
     notes: Mapped[str | None] = mapped_column(Text, nullable=True)
     restrictions: Mapped[str | None] = mapped_column(Text, nullable=True)
     complaints: Mapped[str | None] = mapped_column(Text, nullable=True)
-    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now)
 
     workspace = relationship("Workspace", back_populates="clients")
     conversations = relationship("Conversation", back_populates="client")

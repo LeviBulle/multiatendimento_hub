@@ -19,6 +19,45 @@ def has_column(inspector, table_name: str, column_name: str) -> bool:
     return column_name in {column["name"] for column in inspector.get_columns(table_name)}
 
 
+def has_index(inspector, table_name: str, index_name: str) -> bool:
+    if not has_table(inspector, table_name):
+        return False
+    return index_name in {index["name"] for index in inspector.get_indexes(table_name)}
+
+
+def has_fk(inspector, table_name: str, fk_name: str) -> bool:
+    if not has_table(inspector, table_name):
+        return False
+    for fk in inspector.get_foreign_keys(table_name):
+        if fk["name"] == fk_name:
+            return True
+        if fk.get("referred_table") == "workspaces" and fk.get("constrained_columns") == ["workspace_id"]:
+            return True
+    return False
+
+
+def ensure_initial_workspace(bind) -> None:
+    workspaces = sa.table(
+        "workspaces",
+        sa.column("id", sa.Integer()),
+        sa.column("name", sa.String()),
+        sa.column("slug", sa.String()),
+        sa.column("is_active", sa.Boolean()),
+        sa.column("created_at", sa.DateTime()),
+    )
+    exists = bind.execute(sa.select(workspaces.c.id).where(workspaces.c.slug == "ellub-demo")).first()
+    if not exists:
+        bind.execute(
+            workspaces.insert().values(
+                id=1,
+                name="Ellub Demo",
+                slug="ellub-demo",
+                is_active=True,
+                created_at=sa.func.now(),
+            )
+        )
+
+
 def upgrade() -> None:
     bind = op.get_bind()
     inspector = sa.inspect(bind)
@@ -30,7 +69,7 @@ def upgrade() -> None:
             sa.Column("name", sa.String(120), nullable=False),
             sa.Column("slug", sa.String(80), nullable=False),
             sa.Column("is_active", sa.Boolean(), nullable=False, server_default=sa.true()),
-            sa.Column("created_at", sa.DateTime(), nullable=False, server_default=sa.func.now()),
+            sa.Column("created_at", sa.DateTime(timezone=True), nullable=False, server_default=sa.func.now()),
         )
         op.create_index("ix_workspaces_slug", "workspaces", ["slug"], unique=True)
 
@@ -44,7 +83,7 @@ def upgrade() -> None:
             sa.Column("hashed_password", sa.String(255), nullable=False),
             sa.Column("role", sa.String(30), nullable=False, server_default="agent"),
             sa.Column("is_active", sa.Boolean(), nullable=False, server_default=sa.true()),
-            sa.Column("created_at", sa.DateTime(), nullable=False, server_default=sa.func.now()),
+            sa.Column("created_at", sa.DateTime(timezone=True), nullable=False, server_default=sa.func.now()),
         )
         op.create_index("ix_users_email", "users", ["email"], unique=True)
 
@@ -74,7 +113,7 @@ def upgrade() -> None:
             sa.Column("notes", sa.Text()),
             sa.Column("restrictions", sa.Text()),
             sa.Column("complaints", sa.Text()),
-            sa.Column("created_at", sa.DateTime(), nullable=False, server_default=sa.func.now()),
+            sa.Column("created_at", sa.DateTime(timezone=True), nullable=False, server_default=sa.func.now()),
         )
 
     if not has_table(inspector, "channels"):
@@ -85,7 +124,7 @@ def upgrade() -> None:
             sa.Column("name", sa.String(120), nullable=False),
             sa.Column("type", sa.String(40), nullable=False),
             sa.Column("is_active", sa.Boolean(), nullable=False, server_default=sa.true()),
-            sa.Column("created_at", sa.DateTime(), nullable=False, server_default=sa.func.now()),
+            sa.Column("created_at", sa.DateTime(timezone=True), nullable=False, server_default=sa.func.now()),
         )
 
     if not has_table(inspector, "conversations"):
@@ -99,10 +138,10 @@ def upgrade() -> None:
             sa.Column("status", sa.String(30), nullable=False, server_default="aberta"),
             sa.Column("unread", sa.Boolean(), nullable=False, server_default=sa.true()),
             sa.Column("is_favorite", sa.Boolean(), nullable=False, server_default=sa.false()),
-            sa.Column("last_message_at", sa.DateTime()),
-            sa.Column("first_response_at", sa.DateTime()),
-            sa.Column("closed_at", sa.DateTime()),
-            sa.Column("created_at", sa.DateTime(), nullable=False, server_default=sa.func.now()),
+            sa.Column("last_message_at", sa.DateTime(timezone=True)),
+            sa.Column("first_response_at", sa.DateTime(timezone=True)),
+            sa.Column("closed_at", sa.DateTime(timezone=True)),
+            sa.Column("created_at", sa.DateTime(timezone=True), nullable=False, server_default=sa.func.now()),
             sa.Column("duration_minutes", sa.Integer()),
             sa.Column("first_response_minutes", sa.Integer()),
         )
@@ -117,12 +156,12 @@ def upgrade() -> None:
             sa.Column("text", sa.Text(), nullable=False),
             sa.Column("status", sa.String(30), nullable=False, server_default="enviada"),
             sa.Column("is_internal", sa.Boolean(), nullable=False, server_default=sa.false()),
-            sa.Column("scheduled_for", sa.DateTime()),
+            sa.Column("scheduled_for", sa.DateTime(timezone=True)),
             sa.Column("attachment_original_name", sa.String(255)),
             sa.Column("attachment_stored_name", sa.String(255)),
             sa.Column("attachment_mime_type", sa.String(120)),
             sa.Column("attachment_size_bytes", sa.Integer()),
-            sa.Column("created_at", sa.DateTime(), nullable=False, server_default=sa.func.now()),
+            sa.Column("created_at", sa.DateTime(timezone=True), nullable=False, server_default=sa.func.now()),
         )
 
     if not has_table(inspector, "quick_replies"):
@@ -135,16 +174,27 @@ def upgrade() -> None:
             sa.Column("content", sa.Text(), nullable=False),
             sa.Column("type", sa.String(30), nullable=False, server_default="global"),
             sa.Column("owner_id", sa.Integer(), sa.ForeignKey("users.id")),
-            sa.Column("created_at", sa.DateTime(), nullable=False, server_default=sa.func.now()),
+            sa.Column("created_at", sa.DateTime(timezone=True), nullable=False, server_default=sa.func.now()),
         )
 
-    bind.execute(sa.text("INSERT OR IGNORE INTO workspaces (id, name, slug, is_active, created_at) VALUES (1, 'Ellub Demo', 'ellub-demo', 1, CURRENT_TIMESTAMP)"))
+    ensure_initial_workspace(bind)
     inspector = sa.inspect(bind)
     for table_name in ("users", "clients", "channels", "conversations", "quick_replies"):
         if has_table(inspector, table_name) and not has_column(inspector, table_name, "workspace_id"):
             with op.batch_alter_table(table_name) as batch:
                 batch.add_column(sa.Column("workspace_id", sa.Integer(), nullable=True))
             bind.execute(sa.text(f"UPDATE {table_name} SET workspace_id = 1 WHERE workspace_id IS NULL"))
+        if has_table(inspector, table_name) and has_column(sa.inspect(bind), table_name, "workspace_id"):
+            bind.execute(sa.text(f"UPDATE {table_name} SET workspace_id = 1 WHERE workspace_id IS NULL"))
+            inspector = sa.inspect(bind)
+            index_name = f"ix_{table_name}_workspace_id"
+            if not has_index(inspector, table_name, index_name):
+                op.create_index(index_name, table_name, ["workspace_id"])
+            fk_name = f"fk_{table_name}_workspace_id_workspaces"
+            if not has_fk(inspector, table_name, fk_name):
+                with op.batch_alter_table(table_name) as batch:
+                    batch.alter_column("workspace_id", existing_type=sa.Integer(), nullable=False)
+                    batch.create_foreign_key(fk_name, "workspaces", ["workspace_id"], ["id"])
     if has_table(inspector, "conversations") and not has_column(inspector, "conversations", "is_favorite"):
         with op.batch_alter_table("conversations") as batch:
             batch.add_column(sa.Column("is_favorite", sa.Boolean(), nullable=False, server_default=sa.false()))

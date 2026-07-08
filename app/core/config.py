@@ -14,6 +14,10 @@ class Settings(BaseSettings):
     cookie_secure: bool = False
     max_upload_size_mb: int = 10
     response_sla_minutes: int = 15
+    whatsapp_customer_window_hours: int = 24
+    whatsapp_window_warning_hours: int = 6
+    whatsapp_window_urgent_minutes: int = 60
+    enable_whatsapp_window_enforcement: bool = True
 
     @property
     def is_production(self) -> bool:
@@ -27,6 +31,8 @@ class Settings(BaseSettings):
                 raise RuntimeError("DEMO_MODE deve estar desativado em producao.")
             if self.database_url.startswith("sqlite"):
                 raise RuntimeError("SQLite nao deve ser usado em producao.")
+            if not self.cookie_secure:
+                raise RuntimeError("COOKIE_SECURE deve ser true em producao.")
 
     model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8")
 
